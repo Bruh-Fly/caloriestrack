@@ -20,12 +20,18 @@ from app.models import (
     WeightEntry,
 )
 from app.recognition.factory import get_food_recognition_service
+from app.recognition.gemini import GeminiFoodRecognitionService
 from app.schemas import (
     FoodAnalysisOut,
     DailyNutritionOut,
     GoogleLoginRequest,
     MealCreate,
+    MealItemUpdate,
     NutritionGoalsIn,
+    RecipeTranslationIn,
+    RecipeTranslationOut,
+    RecipeTitlesTranslationIn,
+    RecipeTitlesTranslationOut,
     RefreshRequest,
     TokenPair,
     UserProfileIn,
@@ -254,9 +260,9 @@ async def log_meal(
     )
     db.add(meal)
     await db.flush()
+    item_rows = []
     for item in body.items:
-        db.add(
-            MealItem(
+        row = MealItem(
                 meal_id=meal.id,
                 analysis_id=item.analysis_id or body.analysis_id,
                 name=item.name,
@@ -268,13 +274,73 @@ async def log_meal(
                 fat_g=item.fat,
                 source="ai" if (item.analysis_id or body.analysis_id) else "manual",
             )
-        )
+        item_rows.append(row)
+        db.add(row)
     if analysis is not None:
         analysis.meal_id = meal.id
         analysis.status = "confirmed"
+    await db.flush()
+    item_ids = [str(item.id) for item in item_rows]
     await db.commit()
     await _refresh_daily_nutrition(db, user.id, body.nutrition_date)
-    return {"id": str(meal.id), "consumed_at": body.consumed_at.isoformat(), "status": "logged"}
+    return {
+        "id": str(meal.id),
+        "item_ids": item_ids,
+        "consumed_at": body.consumed_at.isoformat(),
+        "status": "logged",
+    }
+
+
+@router.patch("/me/meals/{meal_id}/items/{item_id}")
+async def update_meal_item(
+    meal_id: UUID,
+    item_id: UUID,
+    body: MealItemUpdate,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    meal = await db.scalar(select(Meal).where(Meal.id == meal_id, Meal.user_id == user.id))
+    item = await db.scalar(
+        select(MealItem).where(MealItem.id == item_id, MealItem.meal_id == meal_id)
+    )
+    if meal is None or item is None:
+        raise HTTPException(status_code=404, detail="Meal item was not found")
+    item.name = body.name
+    item.serving = body.serving
+    item.serving_grams = body.serving_grams
+    item.calories = body.calories
+    item.protein_g = body.protein
+    item.carbs_g = body.carbs
+    item.fat_g = body.fat
+    await db.commit()
+    await _refresh_daily_nutrition(db, user.id, meal.nutrition_date)
+    return {"status": "updated"}
+
+
+@router.delete(
+    "/me/meals/{meal_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_meal_item(
+    meal_id: UUID,
+    item_id: UUID,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    meal = await db.scalar(select(Meal).where(Meal.id == meal_id, Meal.user_id == user.id))
+    item = await db.scalar(
+        select(MealItem).where(MealItem.id == item_id, MealItem.meal_id == meal_id)
+    )
+    if meal is None or item is None:
+        raise HTTPException(status_code=404, detail="Meal item was not found")
+    nutrition_date = meal.nutrition_date
+    await db.delete(item)
+    await db.flush()
+    remaining = await db.scalar(select(MealItem.id).where(MealItem.meal_id == meal_id).limit(1))
+    if remaining is None:
+        await db.delete(meal)
+    await db.commit()
+    await _refresh_daily_nutrition(db, user.id, nutrition_date)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/me/meals/{meal_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -313,13 +379,41 @@ async def meal_history(
         output.append({
             "id": str(meal.id),
             "timestamp": meal.consumed_at.isoformat(),
+            "meal_type": meal.meal_type,
             "items": [{
                 "id": str(item.id), "name": item.name, "serving": item.serving,
+                "serving_grams": str(item.serving_grams) if item.serving_grams is not None else None,
                 "calories": item.calories, "protein": str(item.protein_g),
                 "carbs": str(item.carbs_g), "fat": str(item.fat_g),
             } for item in items],
         })
     return output
+
+
+@router.post("/recipes/translate", response_model=RecipeTranslationOut)
+async def translate_recipe(
+    body: RecipeTranslationIn,
+    _: User = Depends(current_user),
+) -> RecipeTranslationOut:
+    try:
+        translated = await GeminiFoodRecognitionService().translate_recipe(body.model_dump())
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="Recipe translation is unavailable") from exc
+    return RecipeTranslationOut.model_validate(translated)
+
+
+@router.post("/recipes/translate-titles", response_model=RecipeTitlesTranslationOut)
+async def translate_recipe_titles(
+    body: RecipeTitlesTranslationIn,
+    _: User = Depends(current_user),
+) -> RecipeTitlesTranslationOut:
+    try:
+        translated = await GeminiFoodRecognitionService().translate_recipe_titles(
+            [item.model_dump() for item in body.recipes], body.language
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="Recipe title translation is unavailable") from exc
+    return RecipeTitlesTranslationOut.model_validate({"recipes": translated})
 
 
 @router.post("/me/weight", response_model=WeightEntryOut, status_code=status.HTTP_201_CREATED)

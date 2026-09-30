@@ -27,10 +27,12 @@ class AppProvider extends ChangeNotifier {
   List<MealEntry> get todayMeals {
     final now = DateTime.now();
     return _meals
-        .where((m) =>
-            m.timestamp.year == now.year &&
-            m.timestamp.month == now.month &&
-            m.timestamp.day == now.day)
+        .where(
+          (m) =>
+              m.timestamp.year == now.year &&
+              m.timestamp.month == now.month &&
+              m.timestamp.day == now.day,
+        )
         .toList()
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
   }
@@ -60,8 +62,14 @@ class AppProvider extends ChangeNotifier {
   Future<void> refreshMealsFromBackend() async {
     try {
       final remoteMeals = await _api.loadMeals();
-      final remoteIds = remoteMeals.map((meal) => meal.id).toSet();
-      final localOnly = _meals.where((meal) => !remoteIds.contains(meal.id));
+      final remoteMealIds = remoteMeals.map((meal) => meal.mealId).toSet();
+      final remoteItemIds = remoteMeals.map((meal) => meal.itemId).toSet();
+      final localOnly = _meals.where(
+        (meal) =>
+            meal.mealId == null &&
+            !remoteMealIds.contains(meal.id) &&
+            !remoteItemIds.contains(meal.id),
+      );
       _meals = [...remoteMeals, ...localOnly]
         ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
       await _storage.replaceMeals(_meals);
@@ -101,16 +109,22 @@ class AppProvider extends ChangeNotifier {
   }
 
   // ── Meal actions ───────────────────────────────────────────────
-  Future<void> logMeal(FoodResult result,
-      {String? imagePath, String mealType = 'other'}) async {
+  Future<void> logMeal(
+    FoodResult result, {
+    String? imagePath,
+    String mealType = 'other',
+  }) async {
     final timestamp = DateTime.now();
-    final remoteId = await _api.logMeal(result, timestamp, mealType: mealType);
+    final remote = await _api.logMeal(result, timestamp, mealType: mealType);
     final entry = MealEntry.fromFoodResult(
       result,
-      id: remoteId.isEmpty ? _uuid.v4() : remoteId,
+      id: remote.itemId,
+      itemId: remote.itemId,
+      mealId: remote.mealId,
       timestamp: timestamp,
       imagePath: imagePath,
       mealType: mealType,
+      servingGrams: result.servingGrams,
     );
     _meals.add(entry);
     await _storage.saveMeal(entry);
@@ -128,8 +142,10 @@ class AppProvider extends ChangeNotifier {
   }) async {
     final timestamp = DateTime.now();
     var id = _uuid.v4();
+    String? mealId;
+    String? itemId;
     try {
-      id = await _api.logManualMeal(
+      final remote = await _api.logManualMeal(
         name: name,
         calories: calories,
         protein: protein,
@@ -139,6 +155,9 @@ class AppProvider extends ChangeNotifier {
         consumedAt: timestamp,
         mealType: mealType,
       );
+      id = remote.itemId;
+      mealId = remote.mealId;
+      itemId = remote.itemId;
     } catch (_) {
       // Manual meal logging remains available offline; local entries merge on sync.
     }
@@ -152,6 +171,8 @@ class AppProvider extends ChangeNotifier {
       serving: serving,
       timestamp: timestamp,
       mealType: mealType,
+      mealId: mealId,
+      itemId: itemId,
     );
     _meals.add(entry);
     await _storage.saveMeal(entry);
@@ -159,9 +180,19 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> deleteMeal(String id) async {
-    await _api.deleteMeal(id);
+    final meal = _meals.firstWhere((entry) => entry.id == id);
+    await _api.deleteMeal(id, mealId: meal.mealId, itemId: meal.itemId);
     _meals.removeWhere((m) => m.id == id);
     await _storage.deleteMeal(id);
+    notifyListeners();
+  }
+
+  Future<void> updateMealEntry(MealEntry updated) async {
+    await _api.updateMealItem(updated);
+    final index = _meals.indexWhere((meal) => meal.id == updated.id);
+    if (index == -1) return;
+    _meals[index] = updated;
+    await _storage.replaceMeals(_meals);
     notifyListeners();
   }
 
@@ -204,10 +235,12 @@ class AppProvider extends ChangeNotifier {
   // ── History helpers ────────────────────────────────────────────
   List<MealEntry> mealsForDate(DateTime date) {
     return _meals
-        .where((m) =>
-            m.timestamp.year == date.year &&
-            m.timestamp.month == date.month &&
-            m.timestamp.day == date.day)
+        .where(
+          (m) =>
+              m.timestamp.year == date.year &&
+              m.timestamp.month == date.month &&
+              m.timestamp.day == date.day,
+        )
         .toList()
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
   }

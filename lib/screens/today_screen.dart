@@ -10,6 +10,7 @@ import 'fasting_screen.dart';
 import 'history_screen.dart';
 import 'track_food_screen.dart';
 import 'day_summary_screen.dart';
+import 'nutrition_screens.dart';
 import '../widgets/meal_card.dart';
 
 class TodayScreen extends StatefulWidget {
@@ -95,7 +96,11 @@ class _TodayScreenState extends State<TodayScreen> {
                         child: Text(context.tr('Summary', 'Tổng quan'),
                             style: Theme.of(context).textTheme.titleLarge))),
                 TextButton(
-                    onPressed: () => _openDaySummary(context),
+                    onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                NutritionDetailsScreen(date: _selectedDate))),
                     child: Text(context.tr('Details', 'Chi tiết')))
               ]),
             )),
@@ -190,7 +195,11 @@ class _TodayScreenState extends State<TodayScreen> {
                                   .titleMedium
                                   ?.copyWith(fontSize: 17))),
                       TextButton(
-                          onPressed: () => _openDaySummary(context),
+                            onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => NutritionItemsScreen(
+                                        date: _selectedDate))),
                           child: Text(context.tr('More', 'Thêm')))
                     ]))),
             SliverToBoxAdapter(

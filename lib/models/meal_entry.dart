@@ -11,6 +11,9 @@ class MealEntry {
   final DateTime timestamp;
   final String? imagePath;
   final String mealType;
+  final String? mealId;
+  final String? itemId;
+  final double? servingGrams;
 
   const MealEntry({
     required this.id,
@@ -23,6 +26,9 @@ class MealEntry {
     required this.timestamp,
     this.imagePath,
     this.mealType = 'other',
+    this.mealId,
+    this.itemId,
+    this.servingGrams,
   });
 
   factory MealEntry.fromFoodResult(
@@ -31,6 +37,9 @@ class MealEntry {
     required DateTime timestamp,
     String? imagePath,
     String mealType = 'other',
+    String? mealId,
+    String? itemId,
+    double? servingGrams,
   }) {
     return MealEntry(
       id: id,
@@ -43,6 +52,9 @@ class MealEntry {
       timestamp: timestamp,
       imagePath: imagePath,
       mealType: mealType,
+      mealId: mealId,
+      itemId: itemId,
+      servingGrams: servingGrams,
     );
   }
 
@@ -58,19 +70,25 @@ class MealEntry {
       timestamp: DateTime.parse(json['timestamp'] as String),
       imagePath: json['imagePath'] as String?,
       mealType: json['mealType'] as String? ?? 'other',
+      mealId: json['mealId'] as String?,
+      itemId: json['itemId'] as String?,
+      servingGrams: (json['servingGrams'] as num?)?.toDouble(),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'calories': calories,
-        'protein': protein,
-        'carbs': carbs,
-        'fat': fat,
-        'serving': serving,
-        'timestamp': timestamp.toIso8601String(),
-        'imagePath': imagePath,
-        'mealType': mealType,
-      };
+    'id': id,
+    'name': name,
+    'calories': calories,
+    'protein': protein,
+    'carbs': carbs,
+    'fat': fat,
+    'serving': serving,
+    'timestamp': timestamp.toIso8601String(),
+    'imagePath': imagePath,
+    'mealType': mealType,
+    'mealId': mealId,
+    'itemId': itemId,
+    'servingGrams': servingGrams,
+  };
 }

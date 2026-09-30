@@ -105,6 +105,63 @@ class MealCreate(BaseModel):
     items: list[MealItemIn] = Field(min_length=1, max_length=50)
 
 
+class MealItemUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    serving: str = Field(max_length=200)
+    serving_grams: Decimal | None = Field(default=None, gt=0, le=10000)
+    calories: int = Field(ge=0, le=10000)
+    protein: Decimal = Field(ge=0, le=1000)
+    carbs: Decimal = Field(ge=0, le=1500)
+    fat: Decimal = Field(ge=0, le=1000)
+
+
+class RecipeIngredientTranslation(BaseModel):
+    name: str = Field(max_length=200)
+    measure: str = Field(max_length=100)
+
+
+class RecipeTranslationIn(BaseModel):
+    language: str = Field(min_length=2, max_length=8)
+    name: str = Field(min_length=1, max_length=200)
+    area: str = Field(max_length=100)
+    category: str = Field(max_length=100)
+    instructions: str = Field(max_length=6000)
+    ingredients: list[RecipeIngredientTranslation] = Field(max_length=20)
+    tags: list[str] = Field(max_length=20)
+
+
+class RecipeTranslationOut(BaseModel):
+    name: str
+    area: str
+    category: str
+    instructions: str
+    ingredients: list[RecipeIngredientTranslation]
+    tags: list[str]
+
+
+class RecipeTitleTranslationIn(BaseModel):
+    id: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=200)
+    category: str = Field(max_length=100)
+    area: str = Field(max_length=100)
+
+
+class RecipeTitlesTranslationIn(BaseModel):
+    language: str = Field(min_length=2, max_length=8)
+    recipes: list[RecipeTitleTranslationIn] = Field(min_length=1, max_length=30)
+
+
+class RecipeTitleTranslationOut(BaseModel):
+    id: str
+    name: str
+    category: str
+    area: str
+
+
+class RecipeTitlesTranslationOut(BaseModel):
+    recipes: list[RecipeTitleTranslationOut]
+
+
 class WeightEntryIn(BaseModel):
     recorded_on: date
     weight_kg: Decimal = Field(gt=0, le=700)

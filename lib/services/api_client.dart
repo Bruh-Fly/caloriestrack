@@ -16,7 +16,8 @@ class ApiClient {
   );
   static const _accessKey = 'caloai_access_token';
   static const _refreshKey = 'caloai_refresh_token';
-  static const _requestTimeout = Duration(seconds: 20);
+  // Render's free instance can take around a minute to wake after inactivity.
+  static const _requestTimeout = Duration(seconds: 90);
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
@@ -87,35 +88,41 @@ class ApiClient {
     required double carbs,
     required double fat,
   }) async {
-    await _sendJson('PATCH', '/api/v1/me/goals', body: {
-      'daily_calories': calories,
-      'protein_goal': protein,
-      'carbs_goal': carbs,
-      'fat_goal': fat,
-    });
+    await _sendJson(
+      'PATCH',
+      '/api/v1/me/goals',
+      body: {
+        'daily_calories': calories,
+        'protein_goal': protein,
+        'carbs_goal': carbs,
+        'fat_goal': fat,
+      },
+    );
   }
 
   Future<FoodResult> analyzeFood(File image, {String language = 'vi'}) async {
     final token = await _secureStorage.read(key: _accessKey);
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse('$_baseUrl/api/v1/food/analyze'),
-    )
-      ..headers['Accept-Language'] = language
-      ..files.add(await http.MultipartFile.fromPath('image', image.path));
+    final request =
+        http.MultipartRequest(
+            'POST',
+            Uri.parse('$_baseUrl/api/v1/food/analyze'),
+          )
+          ..headers['Accept-Language'] = language
+          ..files.add(await http.MultipartFile.fromPath('image', image.path));
     if (token != null) request.headers['Authorization'] = 'Bearer $token';
 
     var streamed = await request.send().timeout(const Duration(seconds: 60));
     var response = await http.Response.fromStream(streamed);
     if (response.statusCode == 401 && await _refreshAccessToken()) {
       final refreshed = await _secureStorage.read(key: _accessKey);
-      final retry = http.MultipartRequest(
-        'POST',
-        Uri.parse('$_baseUrl/api/v1/food/analyze'),
-      )
-        ..headers['Accept-Language'] = language
-        ..headers['Authorization'] = 'Bearer $refreshed'
-        ..files.add(await http.MultipartFile.fromPath('image', image.path));
+      final retry =
+          http.MultipartRequest(
+              'POST',
+              Uri.parse('$_baseUrl/api/v1/food/analyze'),
+            )
+            ..headers['Accept-Language'] = language
+            ..headers['Authorization'] = 'Bearer $refreshed'
+            ..files.add(await http.MultipartFile.fromPath('image', image.path));
       streamed = await retry.send().timeout(const Duration(seconds: 60));
       response = await http.Response.fromStream(streamed);
     }
@@ -123,8 +130,11 @@ class ApiClient {
     return FoodResult.fromJson(json);
   }
 
-  Future<String> logMeal(FoodResult result, DateTime consumedAt,
-      {String mealType = 'other'}) async {
+  Future<({String mealId, String itemId})> logMeal(
+    FoodResult result,
+    DateTime consumedAt, {
+    String mealType = 'other',
+  }) async {
     final body = {
       'consumed_at': consumedAt.toUtc().toIso8601String(),
       'nutrition_date':
@@ -136,6 +146,7 @@ class ApiClient {
           'analysis_id': result.analysisId,
           'name': result.name,
           'serving': result.serving,
+          'serving_grams': result.servingGrams ?? _servingGrams(result.serving),
           'calories': result.calories,
           'protein': result.protein,
           'carbs': result.carbs,
@@ -146,10 +157,13 @@ class ApiClient {
     final json =
         _decode(await _sendJson('POST', '/api/v1/me/meals', body: body))
             as Map<String, dynamic>;
-    return json['id'] as String;
+    return (
+      mealId: json['id'] as String,
+      itemId: (json['item_ids'] as List<dynamic>).first as String,
+    );
   }
 
-  Future<String> logManualMeal({
+  Future<({String mealId, String itemId})> logManualMeal({
     required String name,
     required int calories,
     required double protein,
@@ -161,26 +175,58 @@ class ApiClient {
   }) async {
     final date =
         '${consumedAt.year.toString().padLeft(4, '0')}-${consumedAt.month.toString().padLeft(2, '0')}-${consumedAt.day.toString().padLeft(2, '0')}';
-    final json = _decode(await _sendJson('POST', '/api/v1/me/meals', body: {
-      'consumed_at': consumedAt.toUtc().toIso8601String(),
-      'nutrition_date': date,
-      'meal_type': mealType,
-      'items': [
-        {
-          'name': name,
-          'serving': serving,
-          'calories': calories,
-          'protein': protein,
-          'carbs': carbs,
-          'fat': fat,
-        },
-      ],
-    })) as Map<String, dynamic>;
-    return json['id'] as String;
+    final json =
+        _decode(
+              await _sendJson(
+                'POST',
+                '/api/v1/me/meals',
+                body: {
+                  'consumed_at': consumedAt.toUtc().toIso8601String(),
+                  'nutrition_date': date,
+                  'meal_type': mealType,
+                  'items': [
+                    {
+                      'name': name,
+                      'serving': serving,
+                      'serving_grams': _servingGrams(serving),
+                      'calories': calories,
+                      'protein': protein,
+                      'carbs': carbs,
+                      'fat': fat,
+                    },
+                  ],
+                },
+              ),
+            )
+            as Map<String, dynamic>;
+    return (
+      mealId: json['id'] as String,
+      itemId: (json['item_ids'] as List<dynamic>).first as String,
+    );
   }
 
-  Future<void> deleteMeal(String id) async {
-    final response = await _send('DELETE', '/api/v1/me/meals/$id');
+  Future<void> updateMealItem(MealEntry meal) async {
+    if (meal.mealId == null || meal.itemId == null) return;
+    await _sendJson(
+      'PATCH',
+      '/api/v1/me/meals/${meal.mealId}/items/${meal.itemId}',
+      body: {
+        'name': meal.name,
+        'serving': meal.serving,
+        'serving_grams': meal.servingGrams,
+        'calories': meal.calories,
+        'protein': meal.protein,
+        'carbs': meal.carbs,
+        'fat': meal.fat,
+      },
+    );
+  }
+
+  Future<void> deleteMeal(String id, {String? mealId, String? itemId}) async {
+    final path = mealId != null && itemId != null
+        ? '/api/v1/me/meals/$mealId/items/$itemId'
+        : '/api/v1/me/meals/$id';
+    final response = await _send('DELETE', path);
     if (response.statusCode == 404) return;
     _decode(response);
   }
@@ -188,34 +234,67 @@ class ApiClient {
   Future<List<MealEntry>> loadMeals() async {
     final response = await _send('GET', '/api/v1/me/meals');
     final list = _decode(response) as List<dynamic>;
-    return list.map((value) {
+    final meals = list.map((value) {
       final meal = value as Map<String, dynamic>;
       final items = meal['items'] as List<dynamic>;
-      final names = <String>[];
-      var calories = 0;
-      var protein = 0.0;
-      var carbs = 0.0;
-      var fat = 0.0;
+      final timestamp = DateTime.parse(meal['timestamp'] as String).toLocal();
+      final entries = <MealEntry>[];
       for (final itemValue in items) {
         final item = itemValue as Map<String, dynamic>;
-        names.add(item['name'] as String);
-        calories += (item['calories'] as num).toInt();
-        protein += (item['protein'] as num).toDouble();
-        carbs += (item['carbs'] as num).toDouble();
-        fat += (item['fat'] as num).toDouble();
+        final itemId = item['id'] as String;
+        entries.add(
+          MealEntry(
+            id: itemId,
+            itemId: itemId,
+            mealId: meal['id'] as String,
+            name: item['name'] as String,
+            calories: (item['calories'] as num).toInt(),
+            protein: (item['protein'] as num).toDouble(),
+            carbs: (item['carbs'] as num).toDouble(),
+            fat: (item['fat'] as num).toDouble(),
+            serving: item['serving'] as String? ?? '1 serving',
+            servingGrams: (item['serving_grams'] as num?)?.toDouble(),
+            timestamp: timestamp,
+            mealType: meal['meal_type'] as String? ?? 'other',
+          ),
+        );
       }
-      return MealEntry(
-        id: meal['id'] as String,
-        name: names.join(' + '),
-        calories: calories,
-        protein: protein,
-        carbs: carbs,
-        fat: fat,
-        serving: '${items.length} món',
-        timestamp: DateTime.parse(meal['timestamp'] as String).toLocal(),
-        mealType: meal['meal_type'] as String? ?? 'other',
-      );
+      return entries;
     }).toList();
+    return meals.expand((items) => items).toList();
+  }
+
+  Future<Map<String, dynamic>> translateRecipe(
+    Map<String, dynamic> recipe,
+  ) async {
+    final response = await _sendJson(
+      'POST',
+      '/api/v1/recipes/translate',
+      body: recipe,
+    );
+    return _decode(response) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> translateRecipeTitles({
+    required String language,
+    required List<Map<String, dynamic>> recipes,
+  }) async {
+    final response = await _sendJson(
+      'POST',
+      '/api/v1/recipes/translate-titles',
+      body: {'language': language, 'recipes': recipes},
+    );
+    final json = _decode(response) as Map<String, dynamic>;
+    return json['recipes'] as List<dynamic>;
+  }
+
+  static double? _servingGrams(String serving) {
+    final match = RegExp(
+      r'\((\d+(?:[.,]\d+)?)\s*g\)',
+      caseSensitive: false,
+    ).firstMatch(serving);
+    if (match == null) return null;
+    return double.tryParse(match.group(1)!.replaceAll(',', '.'));
   }
 
   Future<http.Response> _sendJson(
@@ -224,8 +303,12 @@ class ApiClient {
     required Map<String, dynamic> body,
     bool authenticated = true,
   }) async {
-    return _send(method, path,
-        body: jsonEncode(body), authenticated: authenticated);
+    return _send(
+      method,
+      path,
+      body: jsonEncode(body),
+      authenticated: authenticated,
+    );
   }
 
   Future<http.Response> _send(
@@ -259,8 +342,9 @@ class ApiClient {
     }
 
     try {
-      var token =
-          authenticated ? await _secureStorage.read(key: _accessKey) : null;
+      var token = authenticated
+          ? await _secureStorage.read(key: _accessKey)
+          : null;
       var response = await sendOnce(token: token);
       if (authenticated &&
           response.statusCode == 401 &&
@@ -271,7 +355,7 @@ class ApiClient {
       return response;
     } on TimeoutException {
       throw TimeoutException(
-        'Máy chủ không phản hồi trong 20 giây ($_baseUrl). Nếu dùng backend local, hãy bật FastAPI và chạy: adb reverse tcp:8000 tcp:8000',
+        'Máy chủ không phản hồi trong ${_requestTimeout.inSeconds} giây ($_baseUrl). Nếu đây là lần đầu truy cập sau thời gian không hoạt động, Render Free có thể đang khởi động; hãy giữ màn hình chờ rồi thử lại. Nếu dùng backend local, hãy bật FastAPI và chạy: adb reverse tcp:8000 tcp:8000',
         _requestTimeout,
       );
     } on SocketException catch (error) {
@@ -301,9 +385,13 @@ class ApiClient {
 
   Future<void> _saveTokens(Map<String, dynamic> json) async {
     await _secureStorage.write(
-        key: _accessKey, value: json['access_token'] as String);
+      key: _accessKey,
+      value: json['access_token'] as String,
+    );
     await _secureStorage.write(
-        key: _refreshKey, value: json['refresh_token'] as String);
+      key: _refreshKey,
+      value: json['refresh_token'] as String,
+    );
   }
 
   dynamic _decode(http.Response response) {
@@ -314,16 +402,21 @@ class ApiClient {
       json = null;
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final message =
-          json is Map<String, dynamic> ? json['detail']?.toString() : null;
+      final message = json is Map<String, dynamic>
+          ? json['detail']?.toString()
+          : null;
       throw Exception(
-          message ?? 'Backend request failed (${response.statusCode})');
+        message ?? 'Backend request failed (${response.statusCode})',
+      );
     }
     return json;
   }
 
-  double _profileNumber(Map<String, dynamic> json, String key,
-      {double fallback = 0}) {
+  double _profileNumber(
+    Map<String, dynamic> json,
+    String key, {
+    double fallback = 0,
+  }) {
     final value = json[key];
     if (value is num) return value.toDouble();
     if (value is String) return double.tryParse(value) ?? fallback;
@@ -340,26 +433,26 @@ class ApiClient {
   }
 
   UserProfile _profileFromApi(Map<String, dynamic> json) => UserProfile(
-        uid: json['uid'].toString(),
-        name: json['name'] as String,
-        goal: json['goal'] as String,
-        rate: json['goal_rate'] as String? ?? 'moderate',
-        sex: json['sex'] as String,
-        age: _profileInt(json, 'age'),
-        height: _profileNumber(json, 'height'),
-        weight: _profileNumber(json, 'weight'),
-        targetWeight: _profileNumber(json, 'target_weight'),
-        activity: json['activity'] as String,
-        diet: json['diet'] as String,
-        mealsPerDay: _profileInt(json, 'meals_per_day', fallback: 3),
-        exercise: json['exercise'] as String,
-        sleep: json['sleep'] as String,
-        dailyCalories: _profileInt(json, 'daily_calories', fallback: 2000),
-        proteinGoal: _profileNumber(json, 'protein_goal'),
-        carbsGoal: _profileNumber(json, 'carbs_goal'),
-        fatGoal: _profileNumber(json, 'fat_goal'),
-        email: json['email'] as String,
-        photoUrl: json['photo_url'] as String?,
-        createdAt: DateTime.parse(json['created_at'] as String),
-      );
+    uid: json['uid'].toString(),
+    name: json['name'] as String,
+    goal: json['goal'] as String,
+    rate: json['goal_rate'] as String? ?? 'moderate',
+    sex: json['sex'] as String,
+    age: _profileInt(json, 'age'),
+    height: _profileNumber(json, 'height'),
+    weight: _profileNumber(json, 'weight'),
+    targetWeight: _profileNumber(json, 'target_weight'),
+    activity: json['activity'] as String,
+    diet: json['diet'] as String,
+    mealsPerDay: _profileInt(json, 'meals_per_day', fallback: 3),
+    exercise: json['exercise'] as String,
+    sleep: json['sleep'] as String,
+    dailyCalories: _profileInt(json, 'daily_calories', fallback: 2000),
+    proteinGoal: _profileNumber(json, 'protein_goal'),
+    carbsGoal: _profileNumber(json, 'carbs_goal'),
+    fatGoal: _profileNumber(json, 'fat_goal'),
+    email: json['email'] as String,
+    photoUrl: json['photo_url'] as String?,
+    createdAt: DateTime.parse(json['created_at'] as String),
+  );
 }
