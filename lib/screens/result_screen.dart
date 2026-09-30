@@ -3,209 +3,255 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/food_result.dart';
+import '../models/meal_entry.dart';
 import '../providers/app_provider.dart';
+import '../services/share_card_service.dart';
 import '../theme/app_theme.dart';
 
 class ResultScreen extends StatefulWidget {
+  const ResultScreen(
+      {super.key,
+      required this.result,
+      required this.imageFile,
+      this.mealType});
   final FoodResult result;
   final File imageFile;
-
-  const ResultScreen({super.key, required this.result, required this.imageFile});
+  final String? mealType;
 
   @override
   State<ResultScreen> createState() => _ResultScreenState();
 }
 
 class _ResultScreenState extends State<ResultScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _slideCtrl;
-  late AnimationController _countCtrl;
-  late Animation<Offset>   _slide;
-  late Animation<double>   _fade;
-  late Animation<int>      _calCount;
-
-  bool _logged = false;
+    with SingleTickerProviderStateMixin {
+  late FoodResult _result = widget.result;
+  late final AnimationController _countController;
+  late Animation<int> _calorieCount;
+  bool _saving = false;
+  bool _saved = false;
+  late String _mealType = widget.mealType ?? _suggestMealType();
 
   @override
   void initState() {
     super.initState();
-
-    _slideCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
-    _countCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
-
-    _slide    = Tween<Offset>(begin: const Offset(0, 0.25), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _slideCtrl, curve: Curves.easeOutCubic));
-    _fade     = Tween<double>(begin: 0.0, end: 1.0)
-        .animate(CurvedAnimation(parent: _slideCtrl, curve: Curves.easeOut));
-    _calCount = IntTween(begin: 0, end: widget.result.calories)
-        .animate(CurvedAnimation(parent: _countCtrl, curve: Curves.easeOut));
-
-    _slideCtrl.forward();
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) _countCtrl.forward();
-    });
+    _countController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 800));
+    _calorieCount = IntTween(begin: 0, end: _result.calories).animate(
+        CurvedAnimation(parent: _countController, curve: Curves.easeOutCubic));
+    _countController.forward();
   }
 
   @override
   void dispose() {
-    _slideCtrl.dispose();
-    _countCtrl.dispose();
+    _countController.dispose();
     super.dispose();
   }
 
-  // ────────────────────────────────────────────────────────────────
+  static String _suggestMealType() {
+    final hour = DateTime.now().hour;
+    if (hour < 10) return 'breakfast';
+    if (hour < 14) return 'lunch';
+    if (hour < 17) return 'snack';
+    return 'dinner';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: Stack(
-        children: [
-          // Blurred food image behind top half
-          _buildHeroImage(),
-          // Content
-          SafeArea(
-            child: Column(
-              children: [
-                _buildTopBar(),
-                Expanded(
-                  child: SlideTransition(
-                    position: _slide,
-                    child: FadeTransition(
-                      opacity: _fade,
-                      child: _buildScrollContent(),
-                    ),
-                  ),
-                ),
-              ],
+      backgroundColor: p.background,
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 300,
+            pinned: false,
+            leading: Padding(
+              padding: const EdgeInsets.all(8),
+              child: _RoundAction(
+                  icon: Icons.arrow_back_rounded,
+                  onTap: () => Navigator.pop(context)),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeroImage() {
-    return Positioned(
-      top: 0, left: 0, right: 0,
-      height: 280,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.file(widget.imageFile, fit: BoxFit.cover),
-          // Gradient fade into background
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withOpacity(0.35),
-                  AppTheme.background,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.file(widget.imageFile,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                          color: p.surfaceRaised,
+                          child: Icon(Icons.restaurant_outlined,
+                              color: p.textSecondary, size: 42))),
+                  DecoratedBox(
+                      decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                        Colors.black.withOpacity(.12),
+                        Colors.transparent,
+                        p.background.withOpacity(.97)
+                      ],
+                              stops: const [
+                        0,
+                        .48,
+                        1
+                      ]))),
+                  Positioned(
+                      left: 22,
+                      bottom: 24,
+                      child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 11, vertical: 7),
+                          decoration: BoxDecoration(
+                              color: p.surface.withOpacity(.92),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.pill)),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.auto_awesome_outlined,
+                                size: 14, color: p.brand),
+                            const SizedBox(width: 6),
+                            Text('KẾT QUẢ PHÂN TÍCH',
+                                style: TextStyle(
+                                    color: p.textPrimary,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1))
+                          ]))),
                 ],
-                stops: const [0.3, 1.0],
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.45),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withOpacity(0.2)),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            Text(_result.name,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(fontSize: 24)),
+                            const SizedBox(height: 5),
+                            Text(_result.serving,
+                                style: TextStyle(
+                                    color: p.textSecondary, fontSize: 12)),
+                          ])),
+                      IconButton.filledTonal(
+                          onPressed: _saved ? null : _editResult,
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          tooltip: 'Chỉnh sửa kết quả'),
+                    ],
+                  ),
+                  if (_result.description?.isNotEmpty == true) ...[
+                    const SizedBox(height: 10),
+                    Text(_result.description!,
+                        style: TextStyle(
+                            color: p.textSecondary,
+                            fontSize: 13,
+                            height: 1.45)),
+                  ],
+                  const SizedBox(height: 24),
+                  Text('BỮA ĂN',
+                      style: TextStyle(
+                          color: p.textSecondary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.4)),
+                  const SizedBox(height: 10),
+                  _MealTypeSelector(
+                      selected: _mealType,
+                      onSelect: (value) => setState(() => _mealType = value)),
+                  const SizedBox(height: 23),
+                  Row(children: [
+                    Expanded(
+                        child: Text('Thông tin dinh dưỡng',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontSize: 16))),
+                    TextButton(
+                        onPressed: _saved ? null : _editResult,
+                        child: Text('Sửa',
+                            style: TextStyle(
+                                color: p.brand, fontWeight: FontWeight.w600))),
+                  ]),
+                  const SizedBox(height: 8),
+                  _NutritionGrid(result: _result, calorieCount: _calorieCount),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                        color: p.brandSoft.withOpacity(.65),
+                        borderRadius: BorderRadius.circular(AppRadius.md)),
+                    child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline, color: p.brand, size: 18),
+                          const SizedBox(width: 9),
+                          Expanded(
+                              child: Text(
+                                  'Ước tính dinh dưỡng có thể sai khác. Bạn có thể chỉnh sửa trước khi lưu.',
+                                  style: TextStyle(
+                                      color: p.textSecondary,
+                                      fontSize: 11,
+                                      height: 1.4)))
+                        ]),
+                  ),
+                ],
               ),
-              child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
             ),
           ),
+          const SliverPadding(padding: EdgeInsets.only(bottom: 110)),
         ],
       ),
-    );
-  }
-
-  Widget _buildScrollContent() {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 200, 16, 24),
-      child: Column(
-        children: [
-          // ── Main result card ──
-          _MainCard(result: widget.result, calCount: _calCount),
-          const SizedBox(height: 14),
-          // ── Macro detail card ──
-          _MacroDetailCard(result: widget.result),
-          const SizedBox(height: 24),
-          // ── Log / logged button ──
-          _buildLogButton(),
-          const SizedBox(height: 10),
-          // ── Retake button ──
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: OutlinedButton.icon(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.camera_alt_outlined, size: 18),
-              label: const Text('Chụp lại'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.textSecondary,
-                side: BorderSide(color: Colors.white.withOpacity(0.15)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            OutlinedButton.icon(
+              onPressed: () => ShareCardService.shareMeal(
+                title: _result.name,
+                meals: [
+                  MealEntry.fromFoodResult(
+                    _result,
+                    id: 'share-preview',
+                    timestamp: DateTime.now(),
+                    imagePath: widget.imageFile.path,
+                    mealType: _mealType,
+                  )
+                ],
+                imagePath: widget.imageFile.path,
+              ),
+              icon: const Icon(Icons.ios_share),
+              label: const Text('Share to Locket / apps'),
+            ),
+            const SizedBox(height: 5),
+            SizedBox(
+              height: 54,
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _saving || _saved ? null : _logMeal,
+                icon: Icon(
+                    _saved ? Icons.check_rounded : Icons.bookmark_add_outlined,
+                    size: 19),
+                label: Text(_saved
+                    ? 'Đã lưu vào nhật ký'
+                    : _saving
+                        ? 'Đang lưu…'
+                        : 'Lưu vào nhật ký'),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLogButton() {
-    if (_logged) {
-      return Container(
-        width: double.infinity,
-        height: 56,
-        decoration: BoxDecoration(
-          color: AppTheme.green.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.green.withOpacity(0.4)),
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_circle_rounded, color: AppTheme.green, size: 22),
-            SizedBox(width: 10),
-            Text(
-              'Đã lưu vào nhật ký!',
-              style: TextStyle(color: AppTheme.green, fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton.icon(
-        onPressed: _logMeal,
-        icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
-        label: const Text('Thêm vào nhật ký'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppTheme.accent,
-          foregroundColor: Colors.white,
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          elevation: 0,
-          shadowColor: AppTheme.accent.withOpacity(0.5),
+          ]),
         ),
       ),
     );
@@ -213,288 +259,257 @@ class _ResultScreenState extends State<ResultScreen>
 
   Future<void> _logMeal() async {
     HapticFeedback.mediumImpact();
-    await context.read<AppProvider>().logMeal(
-          widget.result,
-          imagePath: widget.imageFile.path,
-        );
-    setState(() => _logged = true);
-    if (mounted) {
+    setState(() => _saving = true);
+    try {
+      await context.read<AppProvider>().logMeal(_result,
+          imagePath: widget.imageFile.path, mealType: _mealType);
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _saved = true;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: AppTheme.green, size: 18),
-              const SizedBox(width: 10),
-              Text('Đã thêm ${widget.result.name} · ${widget.result.calories} kcal'),
-            ],
-          ),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+          SnackBar(content: Text('Đã lưu ${_result.name} vào nhật ký.')));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không thể lưu món ăn: $error')));
     }
   }
-}
 
-// ── Main Card ─────────────────────────────────────────────────────
-class _MainCard extends StatelessWidget {
-  final FoodResult result;
-  final Animation<int> calCount;
-  const _MainCard({required this.result, required this.calCount});
+  Future<void> _editResult() async {
+    final name = TextEditingController(text: _result.name);
+    final serving = TextEditingController(text: _result.serving);
+    final calories = TextEditingController(text: '${_result.calories}');
+    final protein =
+        TextEditingController(text: _result.protein.toStringAsFixed(1));
+    final carbs = TextEditingController(text: _result.carbs.toStringAsFixed(1));
+    final fat = TextEditingController(text: _result.fat.toStringAsFixed(1));
+    final p = context.palette;
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            blurRadius: 32,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Food name
-          Text(
-            result.name,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.5,
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            result.serving,
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-          ),
-
-          const SizedBox(height: 22),
-
-          // Animated calorie number
-          AnimatedBuilder(
-            animation: calCount,
-            builder: (_, __) => Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${calCount.value}',
-                  style: const TextStyle(
-                    color: AppTheme.accent,
-                    fontSize: 80,
-                    fontWeight: FontWeight.w900,
-                    height: 1.0,
-                    letterSpacing: -3,
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 14, left: 6),
-                  child: Text(
-                    'kcal',
-                    style: TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 22),
-
-          // Macro pills
-          Row(
+    final edited = await showModalBottomSheet<FoodResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: p.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            22, 14, 22, MediaQuery.viewInsetsOf(sheetContext).bottom + 20),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _pill('Protein', '${result.protein.toStringAsFixed(1)}g', AppTheme.proteinColor),
-              const SizedBox(width: 8),
-              _pill('Carbs', '${result.carbs.toStringAsFixed(1)}g', AppTheme.carbsColor),
-              const SizedBox(width: 8),
-              _pill('Béo', '${result.fat.toStringAsFixed(1)}g', AppTheme.fatColor),
-            ],
-          ),
-
-          // Optional description
-          if (result.description != null && result.description!.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.04),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info_outline_rounded, color: AppTheme.textSecondary, size: 16),
-                  const SizedBox(width: 8),
+              Center(
+                  child: Container(
+                      width: 35,
+                      height: 4,
+                      decoration: BoxDecoration(
+                          color: p.outline,
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.pill)))),
+              const SizedBox(height: 18),
+              Text('Chỉnh sửa ước tính',
+                  style: Theme.of(sheetContext).textTheme.titleLarge),
+              const SizedBox(height: 15),
+              Flexible(
+                  child: SingleChildScrollView(
+                      child: Column(children: [
+                _editField(name, 'Tên món'),
+                _editField(serving, 'Khẩu phần'),
+                Row(children: [
+                  Expanded(child: _editField(calories, 'Calo', numeric: true)),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      result.description!,
-                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, height: 1.5),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
+                      child: _editField(protein, 'Protein (g)', numeric: true))
+                ]),
+                Row(children: [
+                  Expanded(
+                      child: _editField(carbs, 'Carbs (g)', numeric: true)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _editField(fat, 'Fat (g)', numeric: true))
+                ]),
+              ]))),
+              const SizedBox(height: 14),
+              SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                      onPressed: () {
+                        final c = int.tryParse(calories.text);
+                        final pr = double.tryParse(protein.text);
+                        final cb = double.tryParse(carbs.text);
+                        final ft = double.tryParse(fat.text);
+                        if (name.text.trim().isEmpty ||
+                            serving.text.trim().isEmpty ||
+                            c == null ||
+                            pr == null ||
+                            cb == null ||
+                            ft == null ||
+                            c < 0 ||
+                            pr < 0 ||
+                            cb < 0 ||
+                            ft < 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                              content: Text(
+                                  'Kiểm tra lại tên, khẩu phần và các giá trị dinh dưỡng.')));
+                          return;
+                        }
+                        Navigator.pop(
+                            sheetContext,
+                            _result.copyWith(
+                                name: name.text.trim(),
+                                serving: serving.text.trim(),
+                                calories: c,
+                                protein: pr,
+                                carbs: cb,
+                                fat: ft));
+                      },
+                      child: const Text('Áp dụng'))),
+            ]),
       ),
     );
+    name.dispose();
+    serving.dispose();
+    calories.dispose();
+    protein.dispose();
+    carbs.dispose();
+    fat.dispose();
+    if (edited == null || !mounted) return;
+    setState(() {
+      _result = edited;
+      _calorieCount = IntTween(begin: _calorieCount.value, end: edited.calories)
+          .animate(CurvedAnimation(
+              parent: _countController, curve: Curves.easeOutCubic));
+      _countController.forward(from: 0);
+    });
   }
 
-  Widget _pill(String label, String value, Color color) => Expanded(
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.25)),
-      ),
-      child: Column(
-        children: [
-          Text(value, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: color.withOpacity(0.65), fontSize: 11, fontWeight: FontWeight.w500)),
-        ],
-      ),
-    ),
-  );
+  Widget _editField(TextEditingController controller, String label,
+          {bool numeric = false}) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: TextField(
+          controller: controller,
+          keyboardType: numeric
+              ? const TextInputType.numberWithOptions(decimal: true)
+              : TextInputType.text,
+          inputFormatters: numeric
+              ? [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]
+              : null,
+          decoration: InputDecoration(labelText: label),
+        ),
+      );
 }
 
-// ── Macro Detail Card ─────────────────────────────────────────────
-class _MacroDetailCard extends StatelessWidget {
-  final FoodResult result;
-  const _MacroDetailCard({required this.result});
+class _RoundAction extends StatelessWidget {
+  const _RoundAction({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Material(
+      color: context.palette.surface.withOpacity(.94),
+      shape: const CircleBorder(),
+      child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+              width: 38,
+              height: 38,
+              child:
+                  Icon(icon, color: context.palette.textPrimary, size: 19))));
+}
+
+class _MealTypeSelector extends StatelessWidget {
+  const _MealTypeSelector({required this.selected, required this.onSelect});
+  final String selected;
+  final ValueChanged<String> onSelect;
+  static const options = [
+    ('breakfast', 'Sáng', Icons.wb_sunny_outlined),
+    ('lunch', 'Trưa', Icons.light_mode_outlined),
+    ('dinner', 'Tối', Icons.nightlight_outlined),
+    ('snack', 'Phụ', Icons.cookie_outlined),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Chi tiết dinh dưỡng',
-            style: TextStyle(color: AppTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 18),
-          _bar('Protein',      result.protein, 50,  'g', AppTheme.proteinColor),
-          const SizedBox(height: 14),
-          _bar('Carbohydrate', result.carbs,   250, 'g', AppTheme.carbsColor),
-          const SizedBox(height: 14),
-          _bar('Chất béo',     result.fat,     65,  'g', AppTheme.fatColor),
-
-          const SizedBox(height: 18),
-          const Divider(color: Color(0xFF2A2A3A), height: 1),
-          const SizedBox(height: 14),
-
-          // Calorie breakdown
-          const Text(
-            'Phân bổ calo',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 10),
-          _calorieBreakdownBar(result),
-        ],
-      ),
-    );
+    final p = context.palette;
+    return Wrap(
+        spacing: 7,
+        runSpacing: 7,
+        children: options.map((option) {
+          final active = selected == option.$1;
+          return ChoiceChip(
+            selected: active,
+            showCheckmark: false,
+            onSelected: (_) => onSelect(option.$1),
+            avatar: Icon(option.$3,
+                size: 15, color: active ? p.onBrand : p.textSecondary),
+            label: Text(option.$2),
+            labelStyle: TextStyle(
+                color: active ? p.onBrand : p.textSecondary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600),
+            backgroundColor: p.surface,
+            selectedColor: p.brand,
+            side: BorderSide.none,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.pill)),
+          );
+        }).toList());
   }
+}
 
-  Widget _bar(String label, double value, double max, String unit, Color color) {
-    final pct = (value / max).clamp(0.0, 1.0);
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-            Text(
-              '${value.toStringAsFixed(1)} $unit',
-              style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        const SizedBox(height: 7),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(5),
-          child: LinearProgressIndicator(
-            value: pct,
-            minHeight: 7,
-            backgroundColor: color.withOpacity(0.15),
-            valueColor: AlwaysStoppedAnimation(color),
-          ),
-        ),
-      ],
-    );
-  }
+class _NutritionGrid extends StatelessWidget {
+  const _NutritionGrid({required this.result, required this.calorieCount});
+  final FoodResult result;
+  final Animation<int> calorieCount;
 
-  Widget _calorieBreakdownBar(FoodResult r) {
-    final total = r.caloriesFromProtein + r.caloriesFromCarbs + r.caloriesFromFat;
-    if (total == 0) return const SizedBox.shrink();
-
-    return Column(
-      children: [
-        // Stacked bar
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: SizedBox(
-            height: 10,
-            child: Row(
-              children: [
-                _stackSegment(r.proteinPercent, AppTheme.proteinColor),
-                _stackSegment(r.carbsPercent,   AppTheme.carbsColor),
-                _stackSegment(r.fatPercent,      AppTheme.fatColor),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        // Legend
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _legend('Protein', r.proteinPercent, AppTheme.proteinColor),
-            _legend('Carbs',   r.carbsPercent,   AppTheme.carbsColor),
-            _legend('Béo',     r.fatPercent,      AppTheme.fatColor),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _stackSegment(double flex, Color color) => Expanded(
-    flex: (flex * 100).toInt().clamp(1, 100),
-    child: Container(color: color),
-  );
-
-  Widget _legend(String label, double pct, Color color) {
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final items = [
+      ('Calo', '${result.calories}', 'kcal', p.brand),
+      ('Protein', result.protein.toStringAsFixed(0), 'g', p.protein),
+      ('Carbs', result.carbs.toStringAsFixed(0), 'g', p.carbs),
+      ('Fat', result.fat.toStringAsFixed(0), 'g', p.fat),
+    ];
     return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 5),
-        Text(
-          '$label ${(pct * 100).toInt()}%',
-          style: TextStyle(color: color.withOpacity(0.8), fontSize: 11, fontWeight: FontWeight.w600),
-        ),
-      ],
+      children: List.generate(items.length, (index) {
+        final item = items[index];
+        return Expanded(
+          child: Container(
+            margin: EdgeInsets.only(right: index == items.length - 1 ? 0 : 7),
+            padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 7),
+            decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: BorderRadius.circular(AppRadius.md)),
+            child: Column(children: [
+              if (index == 0)
+                AnimatedBuilder(
+                    animation: calorieCount,
+                    builder: (_, __) => Text('${calorieCount.value}',
+                        style: TextStyle(
+                            color: item.$4,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2)))
+              else
+                Text(item.$2,
+                    style: TextStyle(
+                        color: item.$4,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2)),
+              const SizedBox(height: 5),
+              Text('${item.$1} · ${item.$3}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: p.textSecondary, fontSize: 9)),
+            ]),
+          ),
+        );
+      }),
     );
   }
 }

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "319982500556",
+    "project_id": "calai-2d124",
+    "storage_bucket": "calai-2d124.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:319982500556:android:2805e9ed67e85602066069",
+        "android_client_info": {
+          "package_name": "com.example.calo_ai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "319982500556-asv0fl7afqu83t65b54lasti5qbj4ubj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.calo_ai",
+            "certificate_hash": "a00a9b05b43878fef5bfd75fd0d71cae8d658944"
+          }
+        },
+        {
+          "client_id": "319982500556-kqit4vc0kid0ts4263dsjo9iic8o3olj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBrRcdM8gxneqmMk-8zZwHFnsGHLM9ZLKk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "319982500556-kqit4vc0kid0ts4263dsjo9iic8o3olj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

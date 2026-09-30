@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: caloai
+      POSTGRES_USER: caloai
+      POSTGRES_PASSWORD: caloai-local-dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - caloai_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U caloai -d caloai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  caloai_postgres_data:

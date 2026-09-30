@@ -55,37 +55,44 @@ class _CalorieRingState extends State<CalorieRing>
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
+    final remaining = (widget.goal - widget.consumed).clamp(0, 99999);
     return AnimatedBuilder(
       animation: _anim,
       builder: (_, __) => SizedBox(
-        width: 200,
-        height: 200,
+        width: 218,
+        height: 218,
         child: CustomPaint(
-          painter: _RingPainter(progress: _anim.value),
+          painter: _RingPainter(
+            progress: _anim.value,
+            track: p.surfaceRaised,
+            brand: p.brand,
+            success: p.success,
+          ),
           child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Percentage
                 Text(
-                  '${(widget.progress * 100).toInt()}%',
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w900,
+                  '$remaining',
+                  style: TextStyle(
+                    color: p.textPrimary,
+                    fontSize: 43,
+                    fontWeight: FontWeight.w700,
                     height: 1.0,
-                    letterSpacing: -1,
+                    letterSpacing: -1.6,
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'đã đạt',
-                  style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                Text('kcal còn lại',
+                    style: TextStyle(
+                        color: p.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(height: 3),
+                Text('trên ${widget.goal} kcal',
+                    style: TextStyle(
+                        color: p.textSecondary.withOpacity(.8), fontSize: 10)),
               ],
             ),
           ),
@@ -97,22 +104,29 @@ class _CalorieRingState extends State<CalorieRing>
 
 class _RingPainter extends CustomPainter {
   final double progress;
-  _RingPainter({required this.progress});
+  final Color track;
+  final Color brand;
+  final Color success;
+  _RingPainter(
+      {required this.progress,
+      required this.track,
+      required this.brand,
+      required this.success});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center      = Offset(size.width / 2, size.height / 2);
-    final radius      = size.width / 2 - 18;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 18;
     const strokeWidth = 16.0;
-    final rect        = Rect.fromCircle(center: center, radius: radius);
+    final rect = Rect.fromCircle(center: center, radius: radius);
 
     // ── Track ring ──
     canvas.drawCircle(
       center,
       radius,
       Paint()
-        ..color      = AppTheme.surface
-        ..style      = PaintingStyle.stroke
+        ..color = track
+        ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth,
     );
 
@@ -125,18 +139,18 @@ class _RingPainter extends CustomPainter {
       2 * pi * progress,
       false,
       Paint()
-        ..color       = AppTheme.accent.withOpacity(0.25)
-        ..style       = PaintingStyle.stroke
-        ..strokeWidth  = strokeWidth + 8
-        ..strokeCap    = StrokeCap.round
-        ..maskFilter   = const MaskFilter.blur(BlurStyle.normal, 12),
+        ..color = brand.withOpacity(0.18)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth + 8
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
     );
 
     // ── Gradient arc ──
     final gradient = SweepGradient(
       startAngle: -pi / 2,
-      endAngle:   -pi / 2 + 2 * pi * progress,
-      colors: const [AppTheme.accent, AppTheme.green],
+      endAngle: -pi / 2 + 2 * pi * progress,
+      colors: [brand, success],
       tileMode: TileMode.clamp,
     );
     canvas.drawArc(
@@ -145,32 +159,36 @@ class _RingPainter extends CustomPainter {
       2 * pi * progress,
       false,
       Paint()
-        ..shader      = gradient.createShader(rect)
-        ..style       = PaintingStyle.stroke
-        ..strokeWidth  = strokeWidth
-        ..strokeCap    = StrokeCap.round,
+        ..shader = gradient.createShader(rect)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round,
     );
 
     // ── Endpoint dot ──
     if (progress > 0.02) {
       final angle = -pi / 2 + 2 * pi * progress;
-      final ex    = center.dx + radius * cos(angle);
-      final ey    = center.dy + radius * sin(angle);
+      final ex = center.dx + radius * cos(angle);
+      final ey = center.dy + radius * sin(angle);
       canvas.drawCircle(
         Offset(ex, ey),
         strokeWidth / 2,
-        Paint()..color = AppTheme.green,
+        Paint()..color = success,
       );
       canvas.drawCircle(
         Offset(ex, ey),
         strokeWidth / 2 + 4,
         Paint()
-          ..color      = AppTheme.green.withOpacity(0.35)
-          ..maskFilter  = const MaskFilter.blur(BlurStyle.normal, 6),
+          ..color = success.withOpacity(0.25)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
       );
     }
   }
 
   @override
-  bool shouldRepaint(_RingPainter old) => old.progress != progress;
+  bool shouldRepaint(_RingPainter old) =>
+      old.progress != progress ||
+      old.track != track ||
+      old.brand != brand ||
+      old.success != success;
 }

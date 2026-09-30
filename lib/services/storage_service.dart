@@ -25,6 +25,14 @@ class StorageService {
     await prefs.setStringList(_mealsKey, jsonList);
   }
 
+  Future<void> replaceMeals(List<MealEntry> meals) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _mealsKey,
+      meals.map((meal) => jsonEncode(meal.toJson())).toList(),
+    );
+  }
+
   Future<void> deleteMeal(String id) async {
     final prefs    = await SharedPreferences.getInstance();
     final jsonList = prefs.getStringList(_mealsKey) ?? [];

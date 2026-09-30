@@ -6,11 +6,21 @@ import httpx
 from app.core.config import get_settings
 from app.recognition.base import FoodAnalysis
 
-_PROMPT = """Analyze this meal photo for a calorie-tracking app. Respond in Vietnamese.
+_PROMPT = """Analyze this meal photo for a calorie-tracking app. Respond in {language}.
 Estimate visible foods and the edible serving shown. Never claim exact measurement from an image.
 Return a JSON object matching the supplied schema only. If there is no food, set is_food=false.
 When uncertain, use a conservative estimate and describe uncertainty briefly.
 """
+
+_LANGUAGES = {
+    "vi": "Vietnamese",
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "zh": "Simplified Chinese",
+    "hi": "Hindi",
+    "ar": "Arabic",
+}
 
 _RESPONSE_SCHEMA = {
     "type": "OBJECT",
@@ -43,7 +53,9 @@ class GeminiFoodRecognitionService:
         )
 
     async def analyze(self, image_jpeg: bytes, locale: str = "vi") -> FoodAnalysis:
-        prompt = _PROMPT if locale.startswith("vi") else _PROMPT.replace("in Vietnamese", "in English")
+        language_code = locale.lower().replace("_", "-").split(",", 1)[0].split("-", 1)[0]
+        language = _LANGUAGES.get(language_code, "English")
+        prompt = _PROMPT.format(language=language)
         body = {
             "contents": [{"parts": [
                 {"text": prompt},

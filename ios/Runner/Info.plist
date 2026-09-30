@@ -33,6 +33,15 @@
 	<string>CaloAI cần quyền lưu ảnh vào thư viện của bạn.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>CaloAI cần quyền microphone khi quay video thức ăn.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>CaloAI đọc số bước từ Apple Health để theo dõi hoạt động hằng ngày.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>CaloAI chỉ cập nhật dữ liệu sức khỏe khi bạn yêu cầu.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 
 	<!-- UI Settings -->
 	<key>UILaunchStoryboardName</key>

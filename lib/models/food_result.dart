@@ -1,4 +1,5 @@
 class FoodResult {
+  final String? analysisId;
   final String name;
   final int calories;
   final double protein;
@@ -8,6 +9,7 @@ class FoodResult {
   final String? description;
 
   const FoodResult({
+    this.analysisId,
     required this.name,
     required this.calories,
     required this.protein,
@@ -17,8 +19,29 @@ class FoodResult {
     this.description,
   });
 
+  FoodResult copyWith({
+    String? name,
+    int? calories,
+    double? protein,
+    double? carbs,
+    double? fat,
+    String? serving,
+    String? description,
+  }) =>
+      FoodResult(
+        analysisId: analysisId,
+        name: name ?? this.name,
+        calories: calories ?? this.calories,
+        protein: protein ?? this.protein,
+        carbs: carbs ?? this.carbs,
+        fat: fat ?? this.fat,
+        serving: serving ?? this.serving,
+        description: description ?? this.description,
+      );
+
   factory FoodResult.fromJson(Map<String, dynamic> json) {
     return FoodResult(
+      analysisId:  json['analysis_id'] as String?,
       name:        json['name']        as String? ?? 'Món ăn không xác định',
       calories:    (json['calories']   as num?)?.toInt()    ?? 0,
       protein:     (json['protein']    as num?)?.toDouble() ?? 0.0,
@@ -30,6 +53,7 @@ class FoodResult {
   }
 
   Map<String, dynamic> toJson() => {
+    'analysis_id': analysisId,
     'name':        name,
     'calories':    calories,
     'protein':     protein,

@@ -1,149 +1,87 @@
-# CaloAI – Nhận diện thức ăn & tính calo bằng AI
+# CaloAI
 
-Ứng dụng tương đương CalAI, dùng **Google Gemini 1.5 Flash** (miễn phí hoàn toàn).
+Flutter calorie tracker with a FastAPI backend, PostgreSQL storage and replaceable food-recognition providers.
 
----
+## Architecture
 
-## 📁 Cấu trúc project
-
-```
-lib/
-├── main.dart                    # Entry point
-├── theme/
-│   └── app_theme.dart           # Dark theme (màu sắc, font)
-├── models/
-│   ├── food_result.dart         # Kết quả AI trả về
-│   └── meal_entry.dart          # Bữa ăn đã ghi lại
-├── services/
-│   ├── gemini_service.dart      # Gọi Gemini API (FREE)
-│   └── storage_service.dart     # Lưu dữ liệu local
-├── providers/
-│   └── app_provider.dart        # State management (Provider)
-├── screens/
-│   ├── main_screen.dart         # Bottom nav host + FAB camera
-│   ├── today_screen.dart        # Trang chủ – ring calo + bữa ăn hôm nay
-│   ├── camera_screen.dart       # Chụp ảnh / chọn từ thư viện
-│   ├── result_screen.dart       # Kết quả phân tích AI
-│   ├── history_screen.dart      # Lịch sử tất cả bữa ăn
-│   └── profile_screen.dart      # Cài đặt mục tiêu calo/macro
-└── widgets/
-    ├── calorie_ring.dart         # Vòng tròn calo animation
-    ├── macro_bar.dart            # Thanh tiến trình protein/carbs/fat
-    └── meal_card.dart            # Card bữa ăn (swipe to delete)
+```mermaid
+flowchart LR
+  Flutter[Flutter app] -->|Google ID token / app JWT| API[FastAPI]
+  Flutter -->|meal photo| API
+  API --> Image[Validate, rotate, resize, strip metadata]
+  Image --> Adapter[FoodRecognitionService]
+  Adapter --> Gemini[Gemini API]
+  API --> DB[(PostgreSQL)]
+  API --> Flutter
 ```
 
----
+The Flutter UI keeps Provider state management and its current screens/theme. Google sign-in is verified by the backend; the backend then issues short-lived access and rotating refresh tokens. Tokens are stored with platform secure storage. Food photos are sent to FastAPI, normalized in memory, and forwarded to the configured provider. Analysis is saved as pending review; confirmed meal values are stored separately from the original model estimate.
 
-## 🔑 Bước 1 – Lấy API Key miễn phí
+AI settings are backend-only: `FOOD_RECOGNITION_PROVIDER`, `GEMINI_MODEL`, and `GEMINI_API_KEY`. The `FoodRecognitionService` interface is the provider boundary. The selected provider is Gemini; additional adapters can be added without changing meal persistence or Flutter screens.
 
-1. Vào https://aistudio.google.com/app/apikey
-2. Đăng nhập Google → nhấn **"Create API key"**
-3. Copy key, mở file `lib/services/gemini_service.dart`
-4. Thay `'YOUR_GEMINI_API_KEY_HERE'` bằng key của bạn
+## Backend setup (local development)
 
-**Giới hạn free tier:**
-- 15 requests/phút
-- 1.500 requests/ngày  
-- 1 triệu token/phút
-→ Đủ dùng cá nhân thoải mái.
+Requirements: Python 3.11+, Docker Desktop, and a Google OAuth web client ID configured for Google Sign-In.
 
----
+```powershell
+Copy-Item backend/.env.example backend/.env
+docker compose up -d postgres
+```
 
-## 🚀 Bước 2 – Cài đặt & chạy
+Edit `backend/.env` and set:
 
-```bash
-# 1. Clone hoặc copy project vào máy
+- `JWT_SECRET`: a long random secret, for example `python -c "import secrets; print(secrets.token_urlsafe(48))"`
+- `GOOGLE_CLIENT_ID`: OAuth **Web application** client ID; use the same ID for the Flutter `GOOGLE_SERVER_CLIENT_ID` build define.
+- `GEMINI_API_KEY`: API key kept on the backend only.
+- `DATABASE_URL`: local PostgreSQL URL matching the compose service.
 
-# 2. Cài dependencies
+Then install and run the backend:
+
+```powershell
+Set-Location backend
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .
+alembic upgrade head
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+FastAPI docs are available at `http://localhost:8000/docs` and health at `/health`.
+
+## Flutter setup
+
+From the repository root:
+
+```powershell
 flutter pub get
-
-# 3. Chạy app
-flutter run
-
-# Build release Android
-flutter build apk --release
-
-# Build release iOS
-flutter build ios --release
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000 --dart-define=GOOGLE_SERVER_CLIENT_ID=YOUR_WEB_CLIENT_ID
 ```
 
-### Yêu cầu
-- Flutter SDK >= 3.2.0
-- Android: minSdkVersion 21 (Android 5.0+)
-- iOS: Deployment target 12.0+
+`10.0.2.2` is the Android emulator address for the host machine. For an iOS simulator, use `http://localhost:8000`; for a physical device, use the development computer's LAN address. Use HTTPS outside local development.
 
----
+## Initial database model
 
-## ✨ Tính năng
+- `users`, `auth_identities`, `auth_sessions`: app users, verified Google identities, and hashed/rotating refresh sessions.
+- `meals`, `meal_items`: user diary and user-confirmed food nutrition.
+- `food_analysis_results`: provider/model, original estimate, review state and latency; linked to a meal after confirmation.
+- `daily_nutrition`: recomputable per-user/per-day totals.
+- `weight_entries`: date-stamped weight history.
 
-| Tính năng | Mô tả |
-|---|---|
-| 📸 Chụp ảnh / chọn gallery | Hỗ trợ cả camera và thư viện |
-| 🤖 AI nhận diện món ăn | Gemini Vision – chính xác cao |
-| 🔢 Tính calo tự động | Protein, Carbs, Chất béo |
-| 📊 Vòng tròn calo ngày | Animation đẹp mắt |
-| 📝 Nhật ký bữa ăn | Lưu lịch sử, swipe xóa |
-| 🎯 Mục tiêu tùy chỉnh | Calo + macro cá nhân |
-| 🌙 Dark theme | Giao diện tối như CalAI |
-| 📱 Offline storage | Dữ liệu lưu trên máy |
+Images are not persisted by the analysis endpoint. The API strips image metadata and stores only the analysis result. Do not put production secrets in this repository; `.env` files are ignored by Git.
 
----
+## API endpoints
 
-## 🎨 Design
+- `POST /api/v1/auth/google`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`
+- `GET/PUT /api/v1/me/profile`
+- `POST /api/v1/food/analyze`
+- `GET/POST /api/v1/me/meals`, `DELETE /api/v1/me/meals/{meal_id}`
+- `GET/POST /api/v1/me/weight`
 
-- **Background:** `#0A0A0F` (gần đen)
-- **Surface:** `#16161E`
-- **Accent (Purple):** `#7C5CFC` 
-- **Green:** `#4ADE80`
-- **Protein:** Purple · **Carbs:** Green · **Fat:** Amber
+## Tests
 
----
-
-## 🔧 Tùy chỉnh nhanh
-
-### Đổi ngôn ngữ nhận diện
-Trong `gemini_service.dart`, sửa dòng trong `_prompt`:
+```powershell
+flutter test
+Set-Location backend
+python -m pip install -e ".[dev]"
+pytest
 ```
-"name": "Tên món ăn chính bằng tiếng Việt",
-```
-→ Đổi thành English nếu muốn tên tiếng Anh.
-
-### Đổi mục tiêu calo mặc định
-Trong `storage_service.dart`:
-```dart
-return prefs.getInt(_calorieGoalKey) ?? 2000; // ← sửa 2000
-```
-
-### Đổi màu accent
-Trong `app_theme.dart`:
-```dart
-static const Color accent = Color(0xFF7C5CFC); // ← sửa màu
-```
-
----
-
-## ⚠️ Lưu ý
-
-- **Độ chính xác:** AI ước tính ~85% chính xác, phụ thuộc ảnh rõ không
-- **Khẩu phần:** Đặt vật tham chiếu (bàn tay, đũa) để AI ước lượng tốt hơn
-- **Dữ liệu:** Tất cả lưu trên máy, không upload lên server (ngoài ảnh gửi Gemini)
-- **Internet:** Cần kết nối để gọi Gemini API
-
----
-
-## 📦 Dependencies
-
-```yaml
-image_picker: ^1.1.2        # Camera & gallery
-http: ^1.2.2                 # HTTP requests đến Gemini
-provider: ^6.1.2             # State management
-shared_preferences: ^2.3.2   # Local storage
-fl_chart: ^0.68.0            # Charts (future use)
-intl: ^0.19.0                # Date formatting
-uuid: ^4.5.1                 # Unique meal IDs
-path_provider: ^2.1.3        # File paths
-```
-
----
-
-*Made with ❤️ – Powered by Google Gemini AI (Free)*

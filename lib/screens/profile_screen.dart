@@ -2,429 +2,622 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
+import '../providers/lifestyle_provider.dart';
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import 'welcome_screen.dart';
+import 'settings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      body: SafeArea(
-        child: Consumer<AppProvider>(
-          builder: (context, prov, _) => CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              _buildHeader(),
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    _DailyGoalCard(prov: prov),
-                    const SizedBox(height: 14),
-                    _MacroGoalsCard(prov: prov),
-                    const SizedBox(height: 14),
-                    _StatsCard(prov: prov),
-                    const SizedBox(height: 14),
-                    _InfoCard(),
-                    const SizedBox(height: 110),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  SliverToBoxAdapter _buildHeader() {
-    return const SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, 20),
-        child: Text(
-          'Cài đặt',
-          style: TextStyle(
-            color: AppTheme.textPrimary,
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.5,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Daily Calorie Goal ─────────────────────────────────────────────
-class _DailyGoalCard extends StatelessWidget {
-  final AppProvider prov;
-  const _DailyGoalCard({required this.prov});
-
-  @override
-  Widget build(BuildContext context) {
-    return _Card(
-      title: '🎯 Mục tiêu calo hàng ngày',
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${prov.calorieGoal} kcal/ngày',
-                style: const TextStyle(
-                  color: AppTheme.accent,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              TextButton(
-                onPressed: () => _editCalorieGoal(context, prov),
-                style: TextButton.styleFrom(
-                  backgroundColor: AppTheme.accent.withOpacity(0.15),
-                  foregroundColor: AppTheme.accent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                ),
-                child: const Text('Sửa', style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _presetBtn(context, prov, 1500, 'Giảm cân'),
-              _presetBtn(context, prov, 2000, 'Duy trì'),
-              _presetBtn(context, prov, 2500, 'Tăng cân'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _presetBtn(BuildContext context, AppProvider prov, int cal, String label) {
-    final selected = prov.calorieGoal == cal;
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        prov.updateCalorieGoal(cal);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppTheme.accent.withOpacity(0.18) : AppTheme.surfaceAlt,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected ? AppTheme.accent.withOpacity(0.5) : Colors.transparent,
-          ),
-        ),
-        child: Column(
+    final p = context.palette;
+    final life = context.watch<LifestyleProvider>();
+    return SafeArea(
+      child: Consumer<AppProvider>(
+        builder: (context, provider, _) => ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(22, 20, 22, 120),
           children: [
-            Text(
-              '$cal',
-              style: TextStyle(
-                color: selected ? AppTheme.accent : AppTheme.textSecondary,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? AppTheme.accent.withOpacity(0.7) : AppTheme.textSecondary,
-                fontSize: 10,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _editCalorieGoal(BuildContext context, AppProvider prov) {
-    final ctrl = TextEditingController(text: '${prov.calorieGoal}');
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Mục tiêu calo', style: TextStyle(color: AppTheme.textPrimary)),
-        content: TextField(
-          controller: ctrl,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 18),
-          decoration: InputDecoration(
-            suffixText: 'kcal',
-            suffixStyle: const TextStyle(color: AppTheme.textSecondary),
-            filled: true,
-            fillColor: AppTheme.surfaceAlt,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy', style: TextStyle(color: AppTheme.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () {
-              final val = int.tryParse(ctrl.text);
-              if (val != null && val > 0) prov.updateCalorieGoal(val);
-              Navigator.pop(context);
-            },
-            child: const Text('Lưu', style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Macro Goals ────────────────────────────────────────────────────
-class _MacroGoalsCard extends StatelessWidget {
-  final AppProvider prov;
-  const _MacroGoalsCard({required this.prov});
-
-  @override
-  Widget build(BuildContext context) {
-    return _Card(
-      title: '⚖️ Mục tiêu dinh dưỡng',
-      child: Column(
-        children: [
-          _macroRow(context, prov, 'Protein',   '${prov.proteinGoal.toInt()}g', AppTheme.proteinColor),
-          const SizedBox(height: 10),
-          _macroRow(context, prov, 'Carbs',     '${prov.carbsGoal.toInt()}g',   AppTheme.carbsColor),
-          const SizedBox(height: 10),
-          _macroRow(context, prov, 'Chất béo',  '${prov.fatGoal.toInt()}g',     AppTheme.fatColor),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () => _editMacros(context, prov),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.textSecondary,
-                side: BorderSide(color: Colors.white.withOpacity(0.12)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Chỉnh sửa macro'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _macroRow(BuildContext ctx, AppProvider prov, String label, String value, Color color) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
+            Text('Tài khoản & mục tiêu',
+                style: TextStyle(color: p.textSecondary, fontSize: 12)),
+            const SizedBox(height: 3),
+            Text('Hồ sơ',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontSize: 28)),
+            const SizedBox(height: 21),
+            _AccountCard(),
+            const SizedBox(height: 16),
+            _BuddyCard(),
+            const SizedBox(height: 22),
+            _SectionHeading(
+                title: 'Tiến độ cân nặng',
+                action: 'Cập nhật',
+                onTap: () => _addWeight(context, life)),
+            const SizedBox(height: 10),
             Container(
-              width: 10, height: 10,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 10),
-            Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
-          ],
-        ),
-        Text(value, style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w700)),
-      ],
-    );
-  }
-
-  void _editMacros(BuildContext context, AppProvider prov) {
-    final pCtrl = TextEditingController(text: '${prov.proteinGoal.toInt()}');
-    final cCtrl = TextEditingController(text: '${prov.carbsGoal.toInt()}');
-    final fCtrl = TextEditingController(text: '${prov.fatGoal.toInt()}');
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Mục tiêu macro', style: TextStyle(color: AppTheme.textPrimary)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _macroField('Protein (g)', pCtrl, AppTheme.proteinColor),
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                    color: p.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.lg)),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Icon(Icons.monitor_weight_outlined, color: p.brand),
+                        const SizedBox(width: 10),
+                        Expanded(
+                            child: Text(
+                                life.weightHistory.isEmpty
+                                    ? 'Thêm cân nặng đầu tiên để theo dõi tiến độ'
+                                    : '${life.weightHistory.first.toStringAsFixed(1)} kg',
+                                style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700))),
+                        if (life.weightHistory.length > 1)
+                          Text('${life.weightHistory.length} lần ghi',
+                              style: TextStyle(
+                                  color: p.textSecondary, fontSize: 11))
+                      ]),
+                      const SizedBox(height: 8),
+                      Text(
+                          life.weightHistory.length > 1
+                              ? 'Lần trước: ${life.weightHistory[1].toStringAsFixed(1)} kg'
+                              : 'Cân nặng được lưu trên thiết bị này.',
+                          style:
+                              TextStyle(color: p.textSecondary, fontSize: 12))
+                    ])),
+            const SizedBox(height: 25),
+            _SectionHeading(
+                title: 'Mục tiêu hàng ngày',
+                action: 'Sửa',
+                onTap: () => _editCalories(context, provider)),
             const SizedBox(height: 10),
-            _macroField('Carbs (g)',   cCtrl, AppTheme.carbsColor),
+            _GoalCard(calories: provider.calorieGoal),
+            const SizedBox(height: 22),
+            _SectionHeading(
+                title: 'Mục tiêu dinh dưỡng',
+                action: 'Sửa',
+                onTap: () => _editMacros(context, provider)),
             const SizedBox(height: 10),
-            _macroField('Chất béo (g)', fCtrl, AppTheme.fatColor),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy', style: TextStyle(color: AppTheme.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () {
-              final p = double.tryParse(pCtrl.text) ?? prov.proteinGoal;
-              final c = double.tryParse(cCtrl.text) ?? prov.carbsGoal;
-              final f = double.tryParse(fCtrl.text) ?? prov.fatGoal;
-              prov.updateMacroGoals(protein: p, carbs: c, fat: f);
-              Navigator.pop(context);
-            },
-            child: const Text('Lưu', style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _macroField(String label, TextEditingController ctrl, Color color) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: TextInputType.number,
-      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      style: TextStyle(color: color, fontWeight: FontWeight.w700),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-        filled: true,
-        fillColor: AppTheme.surfaceAlt,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: color.withOpacity(0.5)),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Stats Card ─────────────────────────────────────────────────────
-class _StatsCard extends StatelessWidget {
-  final AppProvider prov;
-  const _StatsCard({required this.prov});
-
-  @override
-  Widget build(BuildContext context) {
-    final total = prov.allMeals.length;
-    final avgCal = total == 0
-        ? 0
-        : (prov.allMeals.fold<int>(0, (s, m) => s + m.calories) / total).round();
-
-    return _Card(
-      title: '📊 Thống kê',
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _stat('Tổng bữa ăn', '$total',     'bữa'),
-          _vDivider(),
-          _stat('Calo TB/bữa', '$avgCal',    'kcal'),
-          _vDivider(),
-          _stat('Hôm nay',    '${prov.todayCalories}', 'kcal'),
-        ],
-      ),
-    );
-  }
-
-  Widget _stat(String label, String value, String unit) => Column(
-    children: [
-      Text(value, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 22, fontWeight: FontWeight.w900)),
-      const SizedBox(height: 2),
-      Text(unit,  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
-      const SizedBox(height: 2),
-      Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
-    ],
-  );
-
-  Widget _vDivider() => Container(width: 1, height: 40, color: AppTheme.surfaceAlt);
-}
-
-// ── Info Card ──────────────────────────────────────────────────────
-class _InfoCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return _Card(
-      title: 'ℹ️ Thông tin',
-      child: Column(
-        children: [
-          _row(Icons.smart_toy_rounded, 'AI Model', 'Gemini 1.5 Flash (miễn phí)'),
-          const SizedBox(height: 10),
-          _row(Icons.cloud_off_rounded, 'Dữ liệu', 'Lưu trên thiết bị'),
-          const SizedBox(height: 10),
-          _row(Icons.info_rounded, 'Phiên bản', '1.0.0'),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.accent.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.accent.withOpacity(0.2)),
-            ),
-            child: const Row(
+            Row(
               children: [
-                Icon(Icons.key_rounded, color: AppTheme.accent, size: 18),
-                SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    'Lấy API Key miễn phí tại aistudio.google.com\nSau đó điền vào GeminiService._apiKey',
-                    style: TextStyle(
-                      color: AppTheme.textSecondary, fontSize: 12, height: 1.5,
-                    ),
-                  ),
-                ),
+                    child: _MacroGoal(
+                        label: 'Protein',
+                        amount: provider.proteinGoal.round(),
+                        unit: 'g',
+                        color: p.protein)),
+                const SizedBox(width: 9),
+                Expanded(
+                    child: _MacroGoal(
+                        label: 'Carbs',
+                        amount: provider.carbsGoal.round(),
+                        unit: 'g',
+                        color: p.carbs)),
+                const SizedBox(width: 9),
+                Expanded(
+                    child: _MacroGoal(
+                        label: 'Fat',
+                        amount: provider.fatGoal.round(),
+                        unit: 'g',
+                        color: p.fat)),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 25),
+            _SectionHeading(title: 'Tổng quan', action: null),
+            const SizedBox(height: 10),
+            _OverviewCard(
+                mealCount: provider.allMeals.length,
+                consumed: provider.todayCalories),
+            const SizedBox(height: 24),
+            _SettingsRow(
+              icon: Icons.settings_outlined,
+              title: 'Cài đặt',
+              subtitle: 'Thông báo, đơn vị và quyền riêng tư',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            ),
+            const SizedBox(height: 8),
+            _SettingsRow(
+                icon: Icons.info_outline,
+                title: 'Về CaloAI',
+                subtitle: 'Theo dõi dinh dưỡng của bạn'),
+            const SizedBox(height: 8),
+            _SettingsRow(
+              icon: Icons.logout_rounded,
+              title: 'Đăng xuất',
+              subtitle: 'Đăng xuất khỏi thiết bị này',
+              destructive: true,
+              onTap: () => _signOut(context),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _row(IconData icon, String label, String value) => Row(
-    children: [
-      Icon(icon, color: AppTheme.textSecondary, size: 18),
-      const SizedBox(width: 10),
-      Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-      const Spacer(),
-      Text(value, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-    ],
-  );
+  Future<void> _addWeight(BuildContext context, LifestyleProvider life) async {
+    final controller = TextEditingController(
+        text: life.weightHistory.isEmpty
+            ? ''
+            : life.weightHistory.first.toString());
+    final value = await showDialog<double>(
+        context: context,
+        builder: (context) => AlertDialog(
+                title: const Text('Cập nhật cân nặng'),
+                content: TextField(
+                    controller: controller,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                        labelText: 'Cân nặng', suffixText: 'kg')),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Hủy')),
+                  TextButton(
+                      onPressed: () => Navigator.pop(
+                          context,
+                          double.tryParse(
+                              controller.text.replaceAll(',', '.'))),
+                      child: const Text('Lưu'))
+                ]));
+    if (value != null && value > 0 && value < 500) await life.addWeight(value);
+  }
+
+  Future<void> _editCalories(BuildContext context, AppProvider provider) async {
+    final controller = TextEditingController(text: '${provider.calorieGoal}');
+    final p = context.palette;
+    final value = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: p.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (sheetContext) => _EditSheet(
+        title: 'Mục tiêu calo',
+        onSave: () {
+          final parsed = int.tryParse(controller.text);
+          if (parsed != null && parsed >= 500 && parsed <= 10000)
+            Navigator.pop(sheetContext, parsed);
+        },
+        child: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(
+              labelText: 'Calo mỗi ngày', suffixText: 'kcal'),
+        ),
+      ),
+    );
+    controller.dispose();
+    if (value != null) await provider.updateCalorieGoal(value);
+  }
+
+  Future<void> _editMacros(BuildContext context, AppProvider provider) async {
+    final protein =
+        TextEditingController(text: '${provider.proteinGoal.round()}');
+    final carbs = TextEditingController(text: '${provider.carbsGoal.round()}');
+    final fat = TextEditingController(text: '${provider.fatGoal.round()}');
+    final p = context.palette;
+    final values = await showModalBottomSheet<List<double>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: p.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (sheetContext) => _EditSheet(
+        title: 'Mục tiêu dinh dưỡng',
+        onSave: () {
+          final pValue = double.tryParse(protein.text);
+          final cValue = double.tryParse(carbs.text);
+          final fValue = double.tryParse(fat.text);
+          if (pValue != null &&
+              cValue != null &&
+              fValue != null &&
+              pValue >= 0 &&
+              cValue >= 0 &&
+              fValue >= 0) {
+            Navigator.pop(sheetContext, [pValue, cValue, fValue]);
+          }
+        },
+        child: Column(
+          children: [
+            TextField(
+                controller: protein,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                    labelText: 'Protein',
+                    suffixText: 'g',
+                    prefixIcon:
+                        Icon(Icons.circle, color: p.protein, size: 12))),
+            const SizedBox(height: 10),
+            TextField(
+                controller: carbs,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                    labelText: 'Carbs',
+                    suffixText: 'g',
+                    prefixIcon: Icon(Icons.circle, color: p.carbs, size: 12))),
+            const SizedBox(height: 10),
+            TextField(
+                controller: fat,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                    labelText: 'Fat',
+                    suffixText: 'g',
+                    prefixIcon: Icon(Icons.circle, color: p.fat, size: 12))),
+          ],
+        ),
+      ),
+    );
+    protein.dispose();
+    carbs.dispose();
+    fat.dispose();
+    if (values != null)
+      await provider.updateMacroGoals(
+          protein: values[0], carbs: values[1], fat: values[2]);
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    final p = context.palette;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: p.surface,
+        title: Text('Đăng xuất?', style: TextStyle(color: p.textPrimary)),
+        content: Text('Bạn có thể đăng nhập lại bằng Google bất cứ lúc nào.',
+            style: TextStyle(color: p.textSecondary)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('Ở lại', style: TextStyle(color: p.textSecondary))),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text('Đăng xuất', style: TextStyle(color: p.error))),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await context.read<AppProvider>().clearForSignOut();
+    await context.read<LifestyleProvider>().clearForSignOut();
+    await AuthService().signOut();
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const WelcomeScreen()),
+        (_) => false);
+  }
 }
 
-// ── Reusable Card Shell ────────────────────────────────────────────
-class _Card extends StatelessWidget {
+class _BuddyCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(
+            color: p.brandSoft, borderRadius: BorderRadius.circular(20)),
+        child: Row(children: [
+          Icon(Icons.group_add_outlined, color: p.brand, size: 25),
+          const SizedBox(width: 12),
+          const Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text('Cùng bạn bè tạo động lực',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                Text('Mời bạn cùng theo dõi mục tiêu',
+                    style: TextStyle(fontSize: 11))
+              ])),
+          TextButton(
+              onPressed: () async {
+                await Clipboard.setData(const ClipboardData(
+                    text: 'Cùng mình theo dõi dinh dưỡng với CaloAI!'));
+                if (context.mounted)
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Đã sao chép lời mời')));
+              },
+              child: const Text('Mời'))
+        ]));
+  }
+}
+
+class _AccountCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+          color: p.surface, borderRadius: BorderRadius.circular(AppRadius.lg)),
+      child: FutureBuilder(
+        future: AuthService().currentUser,
+        builder: (context, snapshot) {
+          final user = snapshot.data;
+          final name = user?.displayName?.trim().isNotEmpty == true
+              ? user!.displayName!
+              : 'Tài khoản CaloAI';
+          final email = user?.email ?? 'Google đã kết nối';
+          return Row(
+            children: [
+              Container(
+                  width: 48,
+                  height: 48,
+                  decoration:
+                      BoxDecoration(color: p.brandSoft, shape: BoxShape.circle),
+                  child: Icon(Icons.person_outline, color: p.brand)),
+              const SizedBox(width: 13),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: p.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 3),
+                    Text(email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: p.textSecondary, fontSize: 11)),
+                  ])),
+              Icon(Icons.verified_rounded, color: p.success, size: 18),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading(
+      {required this.title, required this.action, this.onTap});
   final String title;
-  final Widget child;
-  const _Card({required this.title, required this.child});
+  final String? action;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Expanded(
+              child: Text(title,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontSize: 15))),
+          if (action != null)
+            TextButton(
+                onPressed: onTap,
+                style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 9),
+                    minimumSize: const Size(0, 34)),
+                child: Text(action!,
+                    style: TextStyle(
+                        color: context.palette.brand,
+                        fontWeight: FontWeight.w600))),
+        ],
+      );
+}
+
+class _GoalCard extends StatelessWidget {
+  const _GoalCard({required this.calories});
+  final int calories;
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(19),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+          color: p.brand, borderRadius: BorderRadius.circular(AppRadius.lg)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          child,
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text('Năng lượng',
+                    style: TextStyle(
+                        color: p.onBrand.withOpacity(.72), fontSize: 12)),
+                const SizedBox(height: 7),
+                Text('$calories',
+                    style: TextStyle(
+                        color: p.onBrand,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w700,
+                        height: 1)),
+              ])),
+          Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Text('kcal / ngày',
+                  style: TextStyle(
+                      color: p.onBrand.withOpacity(.78), fontSize: 12))),
         ],
       ),
+    );
+  }
+}
+
+class _MacroGoal extends StatelessWidget {
+  const _MacroGoal(
+      {required this.label,
+      required this.amount,
+      required this.unit,
+      required this.color});
+  final String label;
+  final int amount;
+  final String unit;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+      decoration: BoxDecoration(
+          color: p.surface, borderRadius: BorderRadius.circular(AppRadius.md)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(height: 13),
+        Text('$amount$unit',
+            style: TextStyle(
+                color: p.textPrimary,
+                fontSize: 19,
+                fontWeight: FontWeight.w700)),
+        const SizedBox(height: 2),
+        Text(label, style: TextStyle(color: p.textSecondary, fontSize: 10)),
+      ]),
+    );
+  }
+}
+
+class _OverviewCard extends StatelessWidget {
+  const _OverviewCard({required this.mealCount, required this.consumed});
+  final int mealCount;
+  final int consumed;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+          color: p.surface, borderRadius: BorderRadius.circular(AppRadius.lg)),
+      child: Row(children: [
+        Expanded(
+            child: _OverviewStat(
+                value: '$mealCount', label: 'Món đã lưu', color: p.brand)),
+        Container(width: 1, height: 34, color: p.outline),
+        Expanded(
+            child: _OverviewStat(
+                value: '$consumed',
+                label: 'Kcal hôm nay',
+                color: p.textPrimary)),
+      ]),
+    );
+  }
+}
+
+class _OverviewStat extends StatelessWidget {
+  const _OverviewStat(
+      {required this.value, required this.label, required this.color});
+  final String value;
+  final String label;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Text(value,
+            style: TextStyle(
+                color: color, fontSize: 20, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 2),
+        Text(label,
+            style:
+                TextStyle(color: context.palette.textSecondary, fontSize: 10))
+      ]);
+}
+
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow(
+      {required this.icon,
+      required this.title,
+      required this.subtitle,
+      this.destructive = false,
+      this.onTap});
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool destructive;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final color = destructive ? p.error : p.textSecondary;
+    return Material(
+      color: p.surface,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            Icon(icon, color: color, size: 19),
+            const SizedBox(width: 12),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(title,
+                      style: TextStyle(
+                          color: destructive ? p.error : p.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: TextStyle(color: p.textSecondary, fontSize: 10))
+                ])),
+            if (onTap != null)
+              Icon(Icons.chevron_right_rounded,
+                  color: p.textSecondary, size: 20),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditSheet extends StatelessWidget {
+  const _EditSheet(
+      {required this.title, required this.child, required this.onSave});
+  final String title;
+  final Widget child;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          22, 13, 22, MediaQuery.viewInsetsOf(context).bottom + 22),
+      child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+                child: Container(
+                    width: 34,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: p.outline,
+                        borderRadius: BorderRadius.circular(AppRadius.pill)))),
+            const SizedBox(height: 20),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 18),
+            child,
+            const SizedBox(height: 18),
+            SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                    onPressed: onSave, child: const Text('Lưu thay đổi'))),
+          ]),
     );
   }
 }

@@ -1,39 +1,36 @@
 import 'dart:io';
+import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/meal_entry.dart';
 import '../theme/app_theme.dart';
 
 class MealCard extends StatelessWidget {
+  const MealCard({super.key, required this.meal, required this.onDelete});
+
   final MealEntry meal;
   final VoidCallback onDelete;
 
-  const MealCard({super.key, required this.meal, required this.onDelete});
-
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Dismissible(
-      key: Key(meal.id),
+      key: ValueKey(meal.id),
       direction: DismissDirection.endToStart,
       confirmDismiss: (_) => showDialog<bool>(
         context: context,
-        builder: (_) => AlertDialog(
-          backgroundColor: AppTheme.surfaceAlt,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Xóa bữa ăn?', style: TextStyle(color: AppTheme.textPrimary)),
-          content: Text(
-            'Xóa "${meal.name}" khỏi nhật ký?',
-            style: const TextStyle(color: AppTheme.textSecondary),
-          ),
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: p.surface,
+          title: Text('Xóa món ăn?', style: TextStyle(color: p.textPrimary)),
+          content: Text('Xóa “${meal.name}” khỏi nhật ký?',
+              style: TextStyle(color: p.textSecondary)),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Hủy', style: TextStyle(color: AppTheme.textSecondary)),
-            ),
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text('Hủy', style: TextStyle(color: p.textSecondary))),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Xóa', style: TextStyle(color: AppTheme.errorColor)),
-            ),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text('Xóa', style: TextStyle(color: p.error))),
           ],
         ),
       ),
@@ -41,83 +38,68 @@ class MealCard extends StatelessWidget {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
         decoration: BoxDecoration(
-          color: AppTheme.errorColor.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppTheme.errorColor.withOpacity(0.4)),
-        ),
-        child: const Icon(Icons.delete_outline_rounded, color: AppTheme.errorColor, size: 26),
+            color: p.error.withOpacity(.12),
+            borderRadius: BorderRadius.circular(AppRadius.md)),
+        child: Icon(Icons.delete_outline, color: p.error),
       ),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-        padding: const EdgeInsets.all(14),
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-        ),
+            color: p.surface,
+            borderRadius: BorderRadius.circular(AppRadius.md)),
         child: Row(
           children: [
-            // Thumbnail
-            _thumbnail(),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              child:
+                  SizedBox(width: 58, height: 58, child: _thumbnail(context)),
+            ),
             const SizedBox(width: 12),
-            // Details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    meal.name,
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(meal.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          color: p.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600)),
                   const SizedBox(height: 3),
                   Text(
-                    '${meal.serving} · ${DateFormat('HH:mm').format(meal.timestamp)}',
-                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                  ),
+                      '${meal.serving} · ${DateFormat('HH:mm').format(meal.timestamp)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: p.textSecondary, fontSize: 11)),
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    spacing: 8,
                     children: [
-                      _chip('P ${meal.protein.toStringAsFixed(0)}g', AppTheme.proteinColor),
-                      const SizedBox(width: 5),
-                      _chip('C ${meal.carbs.toStringAsFixed(0)}g', AppTheme.carbsColor),
-                      const SizedBox(width: 5),
-                      _chip('F ${meal.fat.toStringAsFixed(0)}g', AppTheme.fatColor),
+                      _MacroTag(
+                          label: 'P', value: meal.protein, color: p.protein),
+                      _MacroTag(label: 'C', value: meal.carbs, color: p.carbs),
+                      _MacroTag(label: 'F', value: meal.fat, color: p.fat),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 10),
-            // Calories
+            const SizedBox(width: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  '${meal.calories}',
-                  style: const TextStyle(
-                    color: AppTheme.accent,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const Text(
-                  'kcal',
-                  style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                Text('${meal.calories}',
+                    style: TextStyle(
+                        color: p.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: const [FontFeature.tabularFigures()])),
+                Text('kcal',
+                    style: TextStyle(color: p.textSecondary, fontSize: 10)),
               ],
             ),
           ],
@@ -126,39 +108,54 @@ class MealCard extends StatelessWidget {
     );
   }
 
-  Widget _thumbnail() {
-    Widget child;
+  Widget _thumbnail(BuildContext context) {
+    final p = context.palette;
     if (meal.imagePath != null) {
-      child = Image.file(
-        File(meal.imagePath!),
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _icon(),
-      );
-    } else {
-      child = _icon();
+      return Image.file(File(meal.imagePath!),
+          fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder(p));
     }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: SizedBox(width: 54, height: 54, child: child),
+    return Container(
+      color: p.brandSoft,
+      alignment: Alignment.center,
+      child:
+          Text(_foodCharacter(meal.name), style: const TextStyle(fontSize: 29)),
     );
   }
 
-  Widget _icon() => Container(
-        color: AppTheme.accent.withOpacity(0.12),
-        child: const Icon(Icons.restaurant_rounded, color: AppTheme.accent, size: 26),
-      );
-
-  Widget _chip(String text, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.13),
-          borderRadius: BorderRadius.circular(7),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700),
-        ),
+  Widget _placeholder(AppPalette p) => Container(
+        color: p.brandSoft,
+        child: Icon(Icons.restaurant_outlined, color: p.brand, size: 24),
       );
 }
 
+String _foodCharacter(String name) {
+  final value = name.toLowerCase();
+  if (value.contains('rice')) return '🍚';
+  if (value.contains('chicken')) return '🐥';
+  if (value.contains('banana')) return '🍌';
+  if (value.contains('egg')) return '🥚';
+  if (value.contains('broccoli')) return '🥦';
+  if (value.contains('avocado')) return '🥑';
+  if (value.contains('strawber')) return '🍓';
+  if (value.contains('apple')) return '🍎';
+  if (value.contains('fish') || value.contains('salmon')) return '🐟';
+  if (value.contains('bread')) return '🍞';
+  if (value.contains('coffee')) return '☕';
+  if (value.contains('beef')) return '🐮';
+  return '🍽️';
+}
 
+class _MacroTag extends StatelessWidget {
+  const _MacroTag(
+      {required this.label, required this.value, required this.color});
+  final String label;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        '$label ${value.round()}g',
+        style:
+            TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600),
+      );
+}

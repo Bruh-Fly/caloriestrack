@@ -61,13 +61,15 @@ class _MacroBarState extends State<MacroBar>
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Row(
       children: [
         // Dot
         Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+          decoration:
+              BoxDecoration(color: widget.color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 10),
         // Label
@@ -75,8 +77,8 @@ class _MacroBarState extends State<MacroBar>
           width: 76,
           child: Text(
             widget.label,
-            style: const TextStyle(
-              color: AppTheme.textSecondary,
+            style: TextStyle(
+              color: p.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
