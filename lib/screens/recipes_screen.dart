@@ -221,8 +221,6 @@ class _RecipesScreenState extends State<RecipesScreen> {
                 ? recipe.copyWith(
                     name: recipe.sourceName ?? recipe.name,
                     category: recipe.sourceCategory ?? recipe.category,
-                    sourceName: recipe.sourceName ?? recipe.name,
-                    sourceCategory: recipe.sourceCategory ?? recipe.category,
                   )
                 : recipe)
             .toList();
@@ -232,8 +230,6 @@ class _RecipesScreenState extends State<RecipesScreen> {
             _seen[recipe.id] = current.copyWith(
               name: current.sourceName ?? current.name,
               category: current.sourceCategory ?? current.category,
-              sourceName: current.sourceName ?? current.name,
-              sourceCategory: current.sourceCategory ?? current.category,
             );
           }
         }
@@ -271,8 +267,6 @@ class _RecipesScreenState extends State<RecipesScreen> {
               .map((recipe) => recipe.copyWith(
                     name: recipe.sourceName ?? recipe.name,
                     category: recipe.sourceCategory ?? recipe.category,
-                    sourceName: recipe.sourceName ?? recipe.name,
-                    sourceCategory: recipe.sourceCategory ?? recipe.category,
                   ))
               .toList()
           : await _service.localizedTitles(recipes, language);
