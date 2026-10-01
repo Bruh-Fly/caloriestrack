@@ -20,7 +20,6 @@ from app.models import (
     WeightEntry,
 )
 from app.recognition.factory import get_food_recognition_service
-from app.recognition.gemini import GeminiFoodRecognitionService
 from app.schemas import (
     FoodAnalysisOut,
     DailyNutritionOut,
@@ -396,7 +395,7 @@ async def translate_recipe(
     _: User = Depends(current_user),
 ) -> RecipeTranslationOut:
     try:
-        translated = await GeminiFoodRecognitionService().translate_recipe(body.model_dump())
+        translated = await get_food_recognition_service().translate_recipe(body.model_dump())
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Recipe translation is unavailable") from exc
     return RecipeTranslationOut.model_validate(translated)
@@ -408,7 +407,7 @@ async def translate_recipe_titles(
     _: User = Depends(current_user),
 ) -> RecipeTitlesTranslationOut:
     try:
-        translated = await GeminiFoodRecognitionService().translate_recipe_titles(
+        translated = await get_food_recognition_service().translate_recipe_titles(
             [item.model_dump() for item in body.recipes], body.language
         )
     except (RuntimeError, ValueError) as exc:

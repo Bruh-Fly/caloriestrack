@@ -10,14 +10,14 @@ flowchart LR
   Flutter -->|meal photo| API
   API --> Image[Validate, rotate, resize, strip metadata]
   Image --> Adapter[FoodRecognitionService]
-  Adapter --> Gemini[Gemini API]
+  Adapter --> Groq[Groq API / Qwen vision model]
   API --> DB[(PostgreSQL)]
   API --> Flutter
 ```
 
 The Flutter UI keeps Provider state management and its current screens/theme. Google sign-in is verified by the backend; the backend then issues short-lived access and rotating refresh tokens. Tokens are stored with platform secure storage. Food photos are sent to FastAPI, normalized in memory, and forwarded to the configured provider. Analysis is saved as pending review; confirmed meal values are stored separately from the original model estimate.
 
-AI settings are backend-only: `FOOD_RECOGNITION_PROVIDER`, `GEMINI_MODEL`, and `GEMINI_API_KEY`. The `FoodRecognitionService` interface is the provider boundary. The selected provider is Gemini; additional adapters can be added without changing meal persistence or Flutter screens.
+AI settings are backend-only: `FOOD_RECOGNITION_PROVIDER`, `GROQ_MODEL`, and `GROQ_API_KEY`. The default provider is Groq using `qwen/qwen3.8-27b` for food-photo analysis and recipe translations. Groq's free plan has request and token limits; check the account's current limits in the Groq Console. Gemini remains available as an optional provider by setting `FOOD_RECOGNITION_PROVIDER=gemini` and configuring its backend key.
 
 ## Backend setup (local development)
 
@@ -32,7 +32,8 @@ Edit `backend/.env` and set:
 
 - `JWT_SECRET`: a long random secret, for example `python -c "import secrets; print(secrets.token_urlsafe(48))"`
 - `GOOGLE_CLIENT_ID`: OAuth **Web application** client ID; use the same ID for the Flutter `GOOGLE_SERVER_CLIENT_ID` build define.
-- `GEMINI_API_KEY`: API key kept on the backend only.
+- `GROQ_API_KEY`: API key kept on the backend only. Create one in the Groq Console and configure it as a secret on Render.
+- `GROQ_MODEL`: defaults to `qwen/qwen3.8-27b`.
 - `DATABASE_URL`: local PostgreSQL URL matching the compose service.
 
 Then install and run the backend:

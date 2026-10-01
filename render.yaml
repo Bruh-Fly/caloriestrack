@@ -15,9 +15,15 @@ services:
         generateValue: true
       - key: GOOGLE_CLIENT_ID
         sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: qwen/qwen3.8-27b
       - key: GEMINI_API_KEY
         sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite
       - key: FOOD_RECOGNITION_PROVIDER
-        value: gemini
+        value: groq
       - key: ALLOWED_ORIGINS
         value: ""
