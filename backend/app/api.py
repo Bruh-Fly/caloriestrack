@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from datetime import UTC, date, datetime
 from uuid import UUID
@@ -48,6 +49,7 @@ from app.security import (
 )
 
 router = APIRouter(prefix="/api/v1")
+logger = logging.getLogger(__name__)
 
 
 @router.post("/auth/google", response_model=TokenPair)
@@ -197,6 +199,7 @@ async def analyze_food(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
+        logger.warning("Food analysis provider request failed: %s", exc)
         raise HTTPException(status_code=502, detail="Food analysis provider is unavailable") from exc
 
     elapsed_ms = round((time.perf_counter() - started) * 1000)
@@ -397,6 +400,7 @@ async def translate_recipe(
     try:
         translated = await get_food_recognition_service().translate_recipe(body.model_dump())
     except (RuntimeError, ValueError) as exc:
+        logger.warning("Recipe translation provider request failed: %s", exc)
         raise HTTPException(status_code=502, detail="Recipe translation is unavailable") from exc
     return RecipeTranslationOut.model_validate(translated)
 
@@ -411,6 +415,7 @@ async def translate_recipe_titles(
             [item.model_dump() for item in body.recipes], body.language
         )
     except (RuntimeError, ValueError) as exc:
+        logger.warning("Recipe title translation provider request failed: %s", exc)
         raise HTTPException(status_code=502, detail="Recipe title translation is unavailable") from exc
     return RecipeTitlesTranslationOut.model_validate({"recipes": translated})
 
